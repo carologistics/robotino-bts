@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<root BTCPP_format="4">
+  <TreeNodesModel>
+    <Action ID="MotorMove">
+      <input_port name="server_name" default="motor_move_action">Action server name, usually under /{namespace}/motor_move_action.</input_port>
+      <input_port name="server_timeout" default="1.0">Timeout in seconds while waiting for the action server.</input_port>
+      <input_port name="frame_id">Frame of the requested target pose.</input_port>
+      <input_port name="x">Planar target x.</input_port>
+      <input_port name="y">Planar target y.</input_port>
+      <input_port name="yaw">Final target yaw in radians. Ignored when a quaternion override is provided.</input_port>
+      <input_port name="z" default="0.0">Optional z target.</input_port>
+      <input_port name="qx">Optional quaternion x override.</input_port>
+      <input_port name="qy">Optional quaternion y override.</input_port>
+      <input_port name="qz">Optional quaternion z override.</input_port>
+      <input_port name="qw">Optional quaternion w override.</input_port>
+      <output_port name="success">Action-level success flag from motor_move_msgs/Result.</output_port>
+      <output_port name="distance_to_target">Latest feedback distance to target.</output_port>
+    </Action>
+
+    <Action ID="MoveGripperTo">
+      <input_port name="server_name" default="gigatino/move">Action server name, usually under /{namespace}/gigatino/move.</input_port>
+      <input_port name="server_timeout" default="1.0">Timeout in seconds while waiting for the action server.</input_port>
+      <input_port name="frame">Target frame for the Cartesian goal.</input_port>
+      <input_port name="x">Target x in frame.</input_port>
+      <input_port name="y">Target y in frame.</input_port>
+      <input_port name="z">Target z in frame.</input_port>
+      <output_port name="success">True when the action reached a SUCCEEDED result code.</output_port>
+    </Action>
+
+    <Action ID="MoveGripperRel">
+      <input_port name="server_name" default="gigatino/move">Reserved for a future relative-axis action server.</input_port>
+      <input_port name="axis">Axis to move: x, yaw or z.</input_port>
+      <input_port name="movement">Relative motion on the requested axis.</input_port>
+      <output_port name="error">Explains why this stub currently fails.</output_port>
+    </Action>
+
+    <Action ID="MoveGripperAxisTo">
+      <input_port name="server_name" default="gigatino/move">Reserved for a future absolute-axis action server.</input_port>
+      <input_port name="axis_x">Absolute target for the X axis.</input_port>
+      <input_port name="axis_yaw">Absolute target for the yaw axis.</input_port>
+      <input_port name="axis_z">Absolute target for the Z axis.</input_port>
+      <output_port name="error">Explains why this stub currently fails.</output_port>
+    </Action>
+  </TreeNodesModel>
+</root>
