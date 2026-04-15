@@ -1,0 +1,17 @@
+<root BTCPP_format="4">
+  <BehaviorTree ID="RobotinoDemo">
+    <Sequence>
+      <MotorMove action_name="motor_move_action"
+                 frame_id="base_link"
+                 x="1.0"
+                 y="0.0"
+                 yaw="0.0"/>
+
+      <MoveGripperTo action_name="gigatino/move"
+                     frame="base_link"
+                     x="0.25"
+                     y="0.0"
+                     z="0.12"/>
+    </Sequence>
+  </BehaviorTree>
+</root>

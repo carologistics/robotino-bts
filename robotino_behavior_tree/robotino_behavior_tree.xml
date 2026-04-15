@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<root BTCPP_format="4">
+  <TreeNodesModel>
+    <Action ID="MotorMove">
+      <input_port name="action_name" default="motor_move_action">Action server name, usually under /{namespace}/motor_move_action.</input_port>
+      <input_port name="server_name">Legacy alias for action_name.</input_port>
+      <input_port name="frame_id">Frame of the requested target pose.</input_port>
+      <input_port name="x">Planar target x.</input_port>
+      <input_port name="y">Planar target y.</input_port>
+      <input_port name="yaw">Final target yaw in radians. Ignored when a quaternion override is provided.</input_port>
+      <input_port name="qx">Optional quaternion x override.</input_port>
+      <input_port name="qy">Optional quaternion y override.</input_port>
+      <input_port name="qz">Optional quaternion z override.</input_port>
+      <input_port name="qw">Optional quaternion w override.</input_port>
+      <output_port name="success">Action-level success flag from motor_move_msgs/Result.</output_port>
+      <output_port name="distance_to_target">Latest feedback distance to target.</output_port>
+    </Action>
+
+    <Action ID="MoveGripperTo">
+      <input_port name="action_name" default="gigatino/move">Action server name, usually under /{namespace}/gigatino/move.</input_port>
+      <input_port name="server_name">Legacy alias for action_name.</input_port>
+      <input_port name="frame">Target frame for the Cartesian goal.</input_port>
+      <input_port name="x">Target x in frame.</input_port>
+      <input_port name="y">Target y in frame.</input_port>
+      <input_port name="z">Target z in frame.</input_port>
+      <input_port name="relative" default="false">Whether the requested move is relative.</input_port>
+      <input_port name="use_gripper" default="false">Whether to command the gripper state together with the move.</input_port>
+      <input_port name="gripper_state" default="false">Requested gripper state.</input_port>
+      <output_port name="success">True when the action returns a SUCCESS status code.</output_port>
+      <output_port name="status_code">Raw gigatino status code from the action result.</output_port>
+      <output_port name="message">Result message from the action server.</output_port>
+    </Action>
+  </TreeNodesModel>
+</root>
