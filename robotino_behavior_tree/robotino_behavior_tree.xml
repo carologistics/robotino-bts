@@ -12,6 +12,7 @@
       <input_port name="qy">Optional quaternion y override.</input_port>
       <input_port name="qz">Optional quaternion z override.</input_port>
       <input_port name="qw">Optional quaternion w override.</input_port>
+
       <output_port name="success">Action-level success flag from motor_move_msgs/Result.</output_port>
       <output_port name="distance_to_target">Latest feedback distance to target.</output_port>
     </Action>
@@ -26,9 +27,31 @@
       <input_port name="relative" default="false">Whether the requested move is relative.</input_port>
       <input_port name="use_gripper" default="false">Whether to command the gripper state together with the move.</input_port>
       <input_port name="gripper_state" default="false">Requested gripper state.</input_port>
+
       <output_port name="success">True when the action returns a SUCCESS status code.</output_port>
       <output_port name="status_code">Raw gigatino status code from the action result.</output_port>
       <output_port name="message">Result message from the action server.</output_port>
+    </Action>
+
+    <Action ID="NavigateTo">
+      <input_port name="action_name" default="motor_move_action">Action server name for nav2_msgs/action/NavigateToPose.</input_port>
+      <input_port name="frame_id">Frame in which x, y, and yaw are expressed.</input_port>
+      <input_port name="x">Target x position.</input_port>
+      <input_port name="y">Target y position.</input_port>
+      <input_port name="yaw">Target yaw in radians. Used when quaternion override is not provided.</input_port>
+      <input_port name="qx">Optional quaternion x override. Must be provided together with qy, qz, and qw.</input_port>
+      <input_port name="qy">Optional quaternion y override. Must be provided together with qx, qz, and qw.</input_port>
+      <input_port name="qz">Optional quaternion z override. Must be provided together with qx, qy, and qw.</input_port>
+      <input_port name="qw">Optional quaternion w override. Must be provided together with qx, qy, and qz.</input_port>
+      <input_port name="behavior_tree">Optional which behavior_tree to load.</input_port>
+
+      <output_port name="current_pose">Feedback current pose.</output_port>
+      <output_port name="navigation_time">Feedback time spent navigating.</output_port>
+      <output_port name="estimated_time_remaining">Feedback estimated time remaining to target.</output_port>
+      <output_port name="number_of_recoveries">Feedback number of recovery maneuvers.</output_port>
+      <output_port name="distance_remaining">Feedback remaining distance to target.</output_port>
+      <output_port name="error_code">Result error code from NavigateToPose.</output_port>
+      <output_port name="error_msg">Result error message from nav2.</output_port>
     </Action>
   </TreeNodesModel>
 </root>

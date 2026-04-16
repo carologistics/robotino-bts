@@ -11,6 +11,7 @@ find_package(btcpp_ros2_interfaces REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(gigatino_msgs REQUIRED)
 find_package(motor_move_msgs REQUIRED)
+find_package(nav2_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
@@ -21,6 +22,7 @@ set(dependencies
   geometry_msgs
   gigatino_msgs
   motor_move_msgs
+  nav2_msgs
   rclcpp
   tf2
   tf2_geometry_msgs
@@ -29,6 +31,7 @@ set(dependencies
 set(action_node_list
   motor_move
   move_gripper_to
+  navigate_to
 )
 
 foreach(action_node ${action_node_list})
