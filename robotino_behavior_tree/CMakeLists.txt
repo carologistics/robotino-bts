@@ -1,0 +1,84 @@
+cmake_minimum_required(VERSION 3.16)
+project(robotino_behavior_tree)
+
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+find_package(ament_cmake REQUIRED)
+find_package(behaviortree_ros2 REQUIRED)
+find_package(btcpp_ros2_interfaces REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(gigatino_msgs REQUIRED)
+find_package(motor_move_msgs REQUIRED)
+find_package(nav2_msgs REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
+
+set(dependencies
+  behaviortree_ros2
+  btcpp_ros2_interfaces
+  geometry_msgs
+  gigatino_msgs
+  motor_move_msgs
+  nav2_msgs
+  rclcpp
+  tf2
+  tf2_geometry_msgs
+)
+
+set(action_node_list
+  motor_move
+  move_gripper_to
+  navigate_to
+)
+
+foreach(action_node ${action_node_list})
+  add_library(${action_node}_bt_node SHARED plugins/action/${action_node}.cpp)
+  ament_target_dependencies(${action_node}_bt_node ${dependencies})
+  target_compile_definitions(${action_node}_bt_node PRIVATE BT_PLUGIN_EXPORT)
+  list(APPEND plugin_libs ${action_node}_bt_node)
+endforeach()
+
+add_executable(robotino_tree_server src/robotino_tree_server.cpp)
+ament_target_dependencies(robotino_tree_server ${dependencies})
+
+install(TARGETS
+  robotino_tree_server
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(TARGETS ${plugin_libs}
+  ARCHIVE DESTINATION lib/${PROJECT_NAME}
+  LIBRARY DESTINATION lib/${PROJECT_NAME}
+  RUNTIME DESTINATION lib/${PROJECT_NAME}
+)
+
+install(TARGETS ${plugin_libs}
+  LIBRARY DESTINATION share/${PROJECT_NAME}/bt_plugins
+  ARCHIVE DESTINATION share/${PROJECT_NAME}/bt_plugins
+  RUNTIME DESTINATION share/${PROJECT_NAME}/bt_plugins
+)
+
+install(FILES robotino_behavior_tree.xml
+  DESTINATION share/${PROJECT_NAME}
+)
+
+install(DIRECTORY
+  behavior_trees
+  config
+  launch
+  DESTINATION share/${PROJECT_NAME}
+)
+
+if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
+  set(ament_cmake_copyright_FOUND TRUE)
+  set(ament_cmake_cpplint_FOUND TRUE)
+  ament_lint_auto_find_test_dependencies()
+endif()
+
+ament_export_dependencies(${dependencies})
+
+ament_package()
