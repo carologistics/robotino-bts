@@ -2,9 +2,9 @@
 ```
 mkdir -p ros2_ws/src
 cd ros2_ws
-git clone https://github.com/carologistics/robotino-bts.git src
+git clone https://github.com/carologistics/robotino-bts.git src/robotino-bts
 vcs import --input src/robotino-bts/dependencies.repos src --recursive
-colcon build
+colcon build --symlink-install
 source install/setup.bash
 ```
 
