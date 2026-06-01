@@ -57,11 +57,21 @@ public:
 
   bool setGoal(Goal& goal) override
   {
-    goal.motor_goal.header.stamp = now();
-    goal.motor_goal.header.frame_id = getRequiredInput<std::string>("frame_id");
+    // TODO: goal.motor_goal.header.stamp = now();
+    auto node = Base::node_.lock();
+    std::string namespace_name = node->get_namespace();
+    namespace_name.erase(0, 1);
+    goal.motor_goal.header.frame_id = namespace_name + "/" + getRequiredInput<std::string>("frame_id");
     goal.motor_goal.pose.position.x = getRequiredInput<double>("x");
     goal.motor_goal.pose.position.y = getRequiredInput<double>("y");
     goal.motor_goal.pose.orientation = getOrientation();
+
+    RCLCPP_INFO(logger(),
+                "%s sending goal: frame_id=%s x=%.3f y=%.3f orientation=(%.3f, %.3f, %.3f, %.3f)",
+                name().c_str(), goal.motor_goal.header.frame_id.c_str(),
+                goal.motor_goal.pose.position.x, goal.motor_goal.pose.position.y,
+                goal.motor_goal.pose.orientation.x, goal.motor_goal.pose.orientation.y,
+                goal.motor_goal.pose.orientation.z, goal.motor_goal.pose.orientation.w);
     return true;
   }
 

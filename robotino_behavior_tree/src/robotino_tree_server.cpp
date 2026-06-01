@@ -11,6 +11,14 @@ int main(int argc, char* argv[])
   rclcpp::NodeOptions options;
   auto action_server = std::make_shared<BT::TreeExecutionServer>(options);
 
+  auto node = action_server->node();
+  std::string ns = node->get_namespace();
+  // Strip leading slash if present
+  if (!ns.empty() && ns[0] == '/') {
+    ns = ns.substr(1);
+  }
+  action_server->globalBlackboard()->set("namespace", ns);
+
   rclcpp::executors::MultiThreadedExecutor exec(rclcpp::ExecutorOptions(), 0, false,
                                                 std::chrono::milliseconds(250));
   exec.add_node(action_server->node());

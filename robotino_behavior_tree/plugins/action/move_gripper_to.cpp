@@ -55,7 +55,10 @@ public:
     goal.x = static_cast<float>(getRequiredInput<double>("x"));
     goal.y = static_cast<float>(getRequiredInput<double>("y"));
     goal.z = static_cast<float>(getRequiredInput<double>("z"));
-    goal.target_frame = getRequiredInput<std::string>("frame");
+    auto node = Base::node_.lock();
+    std::string namespace_name = node->get_namespace();
+    namespace_name.erase(0, 1);
+    goal.target_frame = namespace_name + "/" + getRequiredInput<std::string>("frame");
     goal.use_gripper = getInput<bool>("use_gripper").value_or(false);
     goal.gripper_state = getInput<bool>("gripper_state").value_or(false);
     return true;
