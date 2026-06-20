@@ -6,13 +6,11 @@
                  x="1.0"
                  y="0.0"
                  yaw="0.0"/>
-
       <MoveGripperTo action_name="gigatino/move"
-                     frame="base_link"
-                     x="0.25"
+                     frame="end_effector_home"
+                     x="0.1"
                      y="0.0"
-                     z="0.12"/>
-
+                     z="0.1"/>
       <NavigateTo
         frame_id="map"
         x="1.5"
@@ -24,7 +22,7 @@
         number_of_recoveries="{number_of_recoveries}"
         distance_remaining="{distance_remaining}"
         error_code="{error_code}"
-        error_msg="{error_msg}" />
+        error_msg="{error_msg}"/>
     </Sequence>
   </BehaviorTree>
 </root>

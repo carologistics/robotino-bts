@@ -1,4 +1,4 @@
-bt_action_server:
+/**:
   ros__parameters:
     action_name: "robotino_behavior_server"
     tick_frequency: 50
