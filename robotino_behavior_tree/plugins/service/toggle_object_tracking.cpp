@@ -1,3 +1,4 @@
+#include <chrono>
 #include <string>
 
 #include "behaviortree_ros2/bt_service_node.hpp"
@@ -11,6 +12,7 @@ inline BT::RosNodeParams withFixedServiceName(const BT::RosNodeParams & params)
 {
   auto updated = params;
   updated.default_port_value = "object_tracking";
+  updated.server_timeout = std::chrono::seconds(3);
   return updated;
 }
 
