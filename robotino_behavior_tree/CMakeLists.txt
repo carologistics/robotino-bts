@@ -34,6 +34,7 @@ set(action_node_list
   motor_move
   move_gripper_to
   navigate_to
+  set_gripper
 )
 
 foreach(action_node ${action_node_list})

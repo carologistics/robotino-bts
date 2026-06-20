@@ -33,6 +33,15 @@
       <output_port name="message">Result message from the action server.</output_port>
     </Action>
 
+    <Action ID="SetGripper">
+      <input_port name="action_name" default="gigatino/gripper">Gripper action server name.</input_port>
+      <input_port name="server_name">Legacy alias for action_name.</input_port>
+      <input_port name="open" default="false">True to open, false to close the gripper.</input_port>
+
+      <output_port name="status_code">Raw gigatino status code from the action result.</output_port>
+      <output_port name="message">Result message from the action server.</output_port>
+    </Action>
+
     <Action ID="NavigateTo">
       <input_port name="action_name" default="motor_move_action">Action server name for nav2_msgs/action/NavigateToPose.</input_port>
       <input_port name="frame_id">Frame in which x, y, and yaw are expressed.</input_port>
