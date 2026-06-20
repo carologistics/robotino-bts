@@ -13,6 +13,7 @@ find_package(gigatino_msgs REQUIRED)
 find_package(motor_move_msgs REQUIRED)
 find_package(nav2_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(robotino_vision_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 
@@ -24,6 +25,7 @@ set(dependencies
   motor_move_msgs
   nav2_msgs
   rclcpp
+  robotino_vision_msgs
   tf2
   tf2_geometry_msgs
 )
@@ -39,6 +41,17 @@ foreach(action_node ${action_node_list})
   ament_target_dependencies(${action_node}_bt_node ${dependencies})
   target_compile_definitions(${action_node}_bt_node PRIVATE BT_PLUGIN_EXPORT)
   list(APPEND plugin_libs ${action_node}_bt_node)
+endforeach()
+
+set(service_node_list
+  toggle_object_tracking
+)
+
+foreach(service_node ${service_node_list})
+  add_library(${service_node}_bt_node SHARED plugins/service/${service_node}.cpp)
+  ament_target_dependencies(${service_node}_bt_node ${dependencies})
+  target_compile_definitions(${service_node}_bt_node PRIVATE BT_PLUGIN_EXPORT)
+  list(APPEND plugin_libs ${service_node}_bt_node)
 endforeach()
 
 add_executable(robotino_tree_server src/robotino_tree_server.cpp)

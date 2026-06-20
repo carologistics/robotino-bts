@@ -53,5 +53,16 @@
       <output_port name="error_code">Result error code from NavigateToPose.</output_port>
       <output_port name="error_msg">Result error message from nav2.</output_port>
     </Action>
+
+    <Action ID="ToggleObjectTracking">
+      <input_port name="enable" default="true">Enable or disable object tracking.</input_port>
+      <input_port name="object_prompt" default="grey eurobox EG 3212">Text prompt describing the object to track.</input_port>
+      <input_port name="reference_frame" default="base_link">Reference frame used for object tracking.</input_port>
+      <input_port name="distance_threshold" default="10.0">Maximum accepted object distance.</input_port>
+      <input_port name="object_tf_name" default="target_object">TF frame name published for the tracked object.</input_port>
+
+      <output_port name="success">Whether the service accepted the request.</output_port>
+      <output_port name="error">Error returned by the service.</output_port>
+    </Action>
   </TreeNodesModel>
 </root>
