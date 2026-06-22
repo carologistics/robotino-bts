@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <root BTCPP_format="4">
-  <BehaviorTree ID="GripperRoutine">
+  <BehaviorTree ID="PickBox">
     <Sequence>
       <SetGripper action_name="gigatino/gripper"
                      open="true"
