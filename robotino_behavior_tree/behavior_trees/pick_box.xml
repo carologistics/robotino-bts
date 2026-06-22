@@ -16,8 +16,8 @@
       <MoveGripperTo action_name="gigatino/move"
                      frame="tracked_object"
                      x="0.0"
-                     y="0.0"
-                     z="0.0"
+                     y="-0.035"
+                     z="-0.02"
                      status_code="{move_status_code}"
                      message="{move_message}"/> 
       <SetGripper action_name="gigatino/gripper"
@@ -35,7 +35,7 @@
                      frame="end_effector_home"
                      x="0.0"
                      y="0.0"
-                     z="0.055"
+                     z="0.1"
                      status_code="{move_status_code}"
                      message="{move_message}"/> 
     </Sequence>
