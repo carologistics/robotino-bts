@@ -4,6 +4,26 @@
 
 #include "rclcpp/executors/multi_threaded_executor.hpp"
 
+namespace robotino_behavior_tree
+{
+
+class RobotinoTreeServer : public BT::TreeExecutionServer
+{
+public:
+  using BT::TreeExecutionServer::TreeExecutionServer;
+
+protected:
+  void onTreeCreated(BT::Tree& tree) override
+  {
+    if(!goalObjectPrompt().empty())
+    {
+      tree.rootBlackboard()->set("object_prompt", goalObjectPrompt());
+    }
+  }
+};
+
+}  // namespace robotino_behavior_tree
+
 int main(int argc, char* argv[])
 {
   rclcpp::init(argc, argv);

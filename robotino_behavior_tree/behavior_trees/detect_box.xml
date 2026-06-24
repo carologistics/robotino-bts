@@ -1,15 +1,11 @@
 <root BTCPP_format="4">
   <BehaviorTree ID="DetectBox">
     <Sequence>
-      <MoveGripperTo action_name="gigatino/move"
-                     frame="end_effector_home"
-                     x="0.1"
-                     y="0.0"
-                     z="0.1"/>
       <ToggleObjectTracking
-        object_prompt="grey eurobox EG 3212"
+        object_prompt="{object_prompt}"
         reference_frame="base_link"
         distance_threshold="10.0"
+        segmentation_confidence="0.2"
         object_tf_name="target_object"/>
     </Sequence>
   </BehaviorTree>

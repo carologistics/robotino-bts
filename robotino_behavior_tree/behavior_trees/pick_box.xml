@@ -10,13 +10,13 @@
                      frame="end_effector_home"
                      x="0.0"
                      y="0.0"
-                     z="0.1"
+                     z="0.05"
                      status_code="{move_status_code}"
                      message="{move_message}"/>
       <!-- tracked_object offset directions:
-           x higher = grabs further right
+           x higher = grabs further left
            y higher = grabs further up
-           z higher = grabs closer
+           z higher = grabs further away from the robot
       -->
       <MoveGripperTo action_name="gigatino/move"
                      frame="tracked_object"
