@@ -20,8 +20,7 @@ protected:
     setIfNotEmpty(blackboard, "machine_input_tf", goalMachineInputTf());
     setIfNotEmpty(blackboard, "reference_frame", goalReferenceFrame());
     setIfNotEmpty(blackboard, "object_type", goalObjectType());
-    setIfNotEmpty(blackboard, "object_color", goalObjectColor());
-    setIfNotEmpty(blackboard, "lego_type", goalLegoType());
+    setIfNotEmpty(blackboard, "lego_color", goalLegoColor());
     setIfNotEmpty(blackboard, "action", goalAction());
   }
 

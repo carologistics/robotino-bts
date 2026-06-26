@@ -69,6 +69,7 @@
       <input_port name="reference_frame" default="base_link">Reference frame used for object tracking.</input_port>
       <input_port name="distance_threshold" default="10.0">Maximum accepted object distance.</input_port>
       <input_port name="segmentation_confidence" default="0.2">YOLO segmentation confidence threshold.</input_port>
+      <input_port name="target_color" default="">Optional target color filter: green, blue, red, or yellow.</input_port>
       <input_port name="object_tf_name" default="target_object">TF frame name published for the tracked object.</input_port>
 
       <output_port name="success">Whether the service accepted the request.</output_port>
@@ -79,8 +80,7 @@
       <input_port name="machine_input_tf">TF frame of the machine input pose in map.</input_port>
       <input_port name="reference_frame" default="base_link">Reference frame used for object tracking.</input_port>
       <input_port name="object_type">Object type to manipulate: eurobox or lego.</input_port>
-      <input_port name="object_color">Object color used for the tracking prompt.</input_port>
-      <input_port name="lego_type">Lego type, for example 2x4. Ignored for euroboxes.</input_port>
+      <input_port name="lego_color">Lego color for object_type=lego: green, blue, red, or yellow. Ignored for euroboxes.</input_port>
       <input_port name="action">Manipulation action: pick or put.</input_port>
     </SubTree>
   </TreeNodesModel>

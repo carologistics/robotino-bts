@@ -7,12 +7,12 @@
 
       <Switch2 variable="{object_type}" case_1="eurobox" case_2="lego">
         <Sequence>
-          <ScriptCondition code="object_color == 'grey'" />
-          <Script code="object_prompt := 'grey eurobox EG 3212'; segmentation_confidence := 0.2; gripper_home_z := 0.55" />
+          <Script code="object_prompt := 'grey eurobox EG 3212'; segmentation_confidence := 0.2; gripper_home_z := 0.55; target_color := ''" />
         </Sequence>
         <Sequence>
-          <ScriptCondition code="object_color != '' &amp;&amp; lego_type != ''" />
-          <Script code="object_prompt := lego_type + ' ' + object_color + ' brick'; segmentation_confidence := 0.1; gripper_home_z := 0.1" />
+          <!-- TODO: add lego_type again if subtype-specific grasping or detection becomes necessary. -->
+          <ScriptCondition code="lego_color == 'green' || lego_color == 'blue' || lego_color == 'red' || lego_color == 'yellow'" />
+          <Script code="object_prompt := 'toy brick'; segmentation_confidence := 0.2; gripper_home_z := 0.1; target_color := lego_color" />
         </Sequence>
         <AlwaysFailure />
       </Switch2>
@@ -34,6 +34,7 @@
         reference_frame="{reference_frame}"
         distance_threshold="10.0"
         segmentation_confidence="{segmentation_confidence}"
+        target_color="{target_color}"
         object_tf_name="target_object" />
 
       <!-- tracked_object offset directions:

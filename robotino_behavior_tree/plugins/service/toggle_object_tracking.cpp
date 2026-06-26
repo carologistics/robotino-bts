@@ -46,6 +46,8 @@ public:
                               "Maximum accepted object distance in meters"),
       BT::InputPort<double>("segmentation_confidence", 0.2,
                               "YOLO segmentation confidence threshold"),
+      BT::InputPort<std::string>("target_color", "",
+                                   "Optional target color filter: green, blue, red, or yellow"),
       BT::InputPort<std::string>("object_tf_name", "target_object",
                                    "TF frame name published for the tracked object"),
       BT::OutputPort<bool>("success", "Whether the service accepted the request"),
@@ -63,6 +65,7 @@ public:
     request->distance_threshold = getInput<double>("distance_threshold").value_or(10.0);
     request->segmentation_confidence =
       getInput<double>("segmentation_confidence").value_or(0.2);
+    request->target_color = getInput<std::string>("target_color").value_or("");
     request->object_tf_name =
       getInput<std::string>("object_tf_name").value_or("target_object");
     return true;
