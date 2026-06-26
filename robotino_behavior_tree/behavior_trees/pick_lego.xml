@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+<root BTCPP_format="4">
+  <BehaviorTree ID="PickLego">
+    <Sequence>
+      <SetGripper action_name="gigatino/gripper"
+                     open="true"
+                     status_code="{gripper_status_code}"
+                     message="{gripper_message}"/>
+      <MoveGripperTo action_name="gigatino/move"
+                     frame="end_effector_home"
+                     x="0.0"
+                     y="0.0"
+                     z="0.05"
+                     status_code="{move_status_code}"
+                     message="{move_message}"/>
+      <!-- tracked_object offset directions:
+           x higher = grabs further left
+           y higher = grabs further up
+           z higher = grabs further away from the robot
+      -->
+      <MoveGripperTo action_name="gigatino/move"
+                     frame="tracked_object"
+                     x="0.0"
+                     y="-0.035"
+                     z="-0.02"
+                     status_code="{move_status_code}"
+                     message="{move_message}"/> 
+      <SetGripper action_name="gigatino/gripper"
+                     open="false"
+                     status_code="{gripper_status_code}"
+                     message="{gripper_message}"/>
+      <MoveGripperTo action_name="gigatino/move"
+                     frame="gripper_end_effector"
+                     x="0.0"
+                     y="0.0"
+                     z="0.03"
+                     status_code="{move_status_code}"
+                     message="{move_message}"/>
+      <MoveGripperTo action_name="gigatino/move"
+                     frame="end_effector_home"
+                     x="0.0"
+                     y="0.0"
+                     z="0.13"
+                     status_code="{move_status_code}"
+                     message="{move_message}"/> 
+    </Sequence>
+  </BehaviorTree>
+</root>

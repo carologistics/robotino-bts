@@ -15,9 +15,24 @@ public:
 protected:
   void onTreeCreated(BT::Tree& tree) override
   {
-    if(!goalObjectPrompt().empty())
-    {
-      tree.rootBlackboard()->set("object_prompt", goalObjectPrompt());
+    auto blackboard = tree.rootBlackboard();
+    setIfNotEmpty(blackboard, "object_prompt", goalObjectPrompt());
+    setIfNotEmpty(blackboard, "machine_input_tf", goalMachineInputTf());
+    setIfNotEmpty(blackboard, "reference_frame", goalReferenceFrame());
+    setIfNotEmpty(blackboard, "object_type", goalObjectType());
+    setIfNotEmpty(blackboard, "object_color", goalObjectColor());
+    setIfNotEmpty(blackboard, "lego_type", goalLegoType());
+    setIfNotEmpty(blackboard, "action", goalAction());
+  }
+
+private:
+  static void setIfNotEmpty(
+    const BT::Blackboard::Ptr & blackboard,
+    const std::string & key,
+    const std::string & value)
+  {
+    if(!value.empty()) {
+      blackboard->set(key, value);
     }
   }
 };
@@ -29,7 +44,7 @@ int main(int argc, char* argv[])
   rclcpp::init(argc, argv);
 
   rclcpp::NodeOptions options;
-  auto action_server = std::make_shared<BT::TreeExecutionServer>(options);
+  auto action_server = std::make_shared<robotino_behavior_tree::RobotinoTreeServer>(options);
 
   auto node = action_server->node();
   std::string ns = node->get_namespace();

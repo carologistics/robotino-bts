@@ -20,3 +20,28 @@ ros2 launch robotino_behavior_tree server.launch.py namespace:=robotinobase1
 ```
 ros2 action send_goal /robotinobase1/robotino_behavior_server btcpp_ros2_interfaces/action/ExecuteTree "{target_tree: RobotinoDemo}"
 ```
+
+## ManipulateObject Examples
+
+Replace `machine_input_tf` with the TF frame of the target robot pose for the machine input.
+
+Pick a grey eurobox:
+```
+ros2 action send_goal /robotinobase1/robotino_behavior_server btcpp_ros2_interfaces/action/ExecuteTree "{target_tree: ManipulateObject, object_prompt: '', machine_input_tf: 'machine_input_tf', reference_frame: 'base_link', object_type: 'eurobox', object_color: 'grey', lego_type: '', action: 'pick'}"
+```
+
+Put a grey eurobox:
+```
+ros2 action send_goal /robotinobase1/robotino_behavior_server btcpp_ros2_interfaces/action/ExecuteTree "{target_tree: ManipulateObject, object_prompt: '', machine_input_tf: 'machine_input_tf', reference_frame: 'base_link', object_type: 'eurobox', object_color: 'grey', lego_type: '', action: 'put'}"
+```
+
+Pick a yellow 2x4 lego brick:
+```
+ros2 action send_goal /robotinobase1/robotino_behavior_server btcpp_ros2_interfaces/action/ExecuteTree "{target_tree: ManipulateObject, object_prompt: '', machine_input_tf: 'machine_input_tf', reference_frame: 'base_link', object_type: 'lego', object_color: 'yellow', lego_type: '2x4', action: 'pick'}"
+```
+
+Put a yellow 2x4 lego brick:
+```
+ros2 action send_goal /robotinobase1/robotino_behavior_server btcpp_ros2_interfaces/action/ExecuteTree "{target_tree: ManipulateObject, object_prompt: '', machine_input_tf: 'machine_input_tf', reference_frame: 'base_link', object_type: 'lego', object_color: 'yellow', lego_type: '2x4', action: 'put'}"
+```
+

@@ -1,5 +1,5 @@
 <root BTCPP_format="4">
-  <BehaviorTree ID="DetectBox">
+  <BehaviorTree ID="DetectObject">
     <Sequence>
       <ToggleObjectTracking
         object_prompt="{object_prompt}"
