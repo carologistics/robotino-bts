@@ -29,6 +29,7 @@
                      open="false"
                      status_code="{gripper_status_code}"
                      message="{gripper_message}"/>
+      <Sleep msec="200"/>
       <MoveGripperTo action_name="gigatino/move"
                      frame="gripper_end_effector"
                      x="0.0"

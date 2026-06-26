@@ -12,7 +12,7 @@
         <Sequence>
           <!-- TODO: add lego_type again if subtype-specific grasping or detection becomes necessary. -->
           <ScriptCondition code="lego_color == 'green' || lego_color == 'blue' || lego_color == 'red' || lego_color == 'yellow'" />
-          <Script code="object_prompt := 'toy brick'; segmentation_confidence := 0.2; gripper_home_z := 0.1; target_color := lego_color" />
+          <Script code="object_prompt := 'toy brick'; segmentation_confidence := 0.1; gripper_home_z := 0.1; target_color := lego_color" />
         </Sequence>
         <AlwaysFailure />
       </Switch2>
