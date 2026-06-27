@@ -18,30 +18,30 @@ ros2 launch robotino_behavior_tree server.launch.py namespace:=robotinobase1
 
 # Execute
 ```
-ros2 action send_goal /robotinobase1/robotino_behavior_server btcpp_ros2_interfaces/action/ExecuteTree "{target_tree: RobotinoDemo}"
+ros2 action send_goal /robotinobase1/robotino_behavior_server btcpp_ros2_interfaces/action/ExecuteTree "{target_tree: RobotinoDemo, payload: ''}"
 ```
 
 ## ManipulateObject Examples
 
-Replace `machine_input_tf` with the TF frame of the target robot pose for the machine input.
+Replace `machine_input_tf` with the TF frame of the target robot pose for the machine input. The Robotino-specific inputs are passed through the generic `payload` string as a small JSON object, so `BehaviorTree.ROS2` can stay upstream-compatible.
 
 Pick a grey eurobox:
 ```
-ros2 action send_goal /robotinobase1/robotino_behavior_server btcpp_ros2_interfaces/action/ExecuteTree "{target_tree: ManipulateObject, object_prompt: '', machine_input_tf: 'machine_input_tf', reference_frame: 'base_link', object_type: 'eurobox', lego_color: '', action: 'pick'}"
+ros2 action send_goal /robotinobase1/robotino_behavior_server btcpp_ros2_interfaces/action/ExecuteTree "{target_tree: ManipulateObject, payload: '{\"machine_input_tf\":\"machine_input_tf\",\"reference_frame\":\"base_link\",\"object_type\":\"eurobox\",\"action\":\"pick\"}'}"
 ```
 
 Put a grey eurobox:
 ```
-ros2 action send_goal /robotinobase1/robotino_behavior_server btcpp_ros2_interfaces/action/ExecuteTree "{target_tree: ManipulateObject, object_prompt: '', machine_input_tf: 'machine_input_tf', reference_frame: 'base_link', object_type: 'eurobox', lego_color: '', action: 'put'}"
+ros2 action send_goal /robotinobase1/robotino_behavior_server btcpp_ros2_interfaces/action/ExecuteTree "{target_tree: ManipulateObject, payload: '{\"machine_input_tf\":\"machine_input_tf\",\"reference_frame\":\"base_link\",\"object_type\":\"eurobox\",\"action\":\"put\"}'}"
 ```
 
 Pick a yellow lego brick:
 ```
-ros2 action send_goal /robotinobase1/robotino_behavior_server btcpp_ros2_interfaces/action/ExecuteTree "{target_tree: ManipulateObject, object_prompt: '', machine_input_tf: 'machine_input_tf', reference_frame: 'base_link', object_type: 'lego', lego_color: 'yellow', action: 'pick'}"
+ros2 action send_goal /robotinobase1/robotino_behavior_server btcpp_ros2_interfaces/action/ExecuteTree "{target_tree: ManipulateObject, payload: '{\"machine_input_tf\":\"machine_input_tf\",\"reference_frame\":\"base_link\",\"object_type\":\"lego\",\"lego_color\":\"yellow\",\"action\":\"pick\"}'}"
 ```
 
 Put a yellow lego brick:
 ```
-ros2 action send_goal /robotinobase1/robotino_behavior_server btcpp_ros2_interfaces/action/ExecuteTree "{target_tree: ManipulateObject, object_prompt: '', machine_input_tf: 'machine_input_tf', reference_frame: 'base_link', object_type: 'lego', lego_color: 'yellow', action: 'put'}"
+ros2 action send_goal /robotinobase1/robotino_behavior_server btcpp_ros2_interfaces/action/ExecuteTree "{target_tree: ManipulateObject, payload: '{\"machine_input_tf\":\"machine_input_tf\",\"reference_frame\":\"base_link\",\"object_type\":\"lego\",\"lego_color\":\"yellow\",\"action\":\"put\"}'}"
 ```
 
