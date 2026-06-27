@@ -10,19 +10,19 @@
                      frame="end_effector_home"
                      x="0.0"
                      y="0.0"
-                     z="0.05"
+                     z="0.12"
                      status_code="{move_status_code}"
                      message="{move_message}"/>
       <!-- tracked_object offset directions:
            x higher = grabs further left
-           y higher = grabs further up
+           y higher = grabs lower
            z higher = grabs further away from the robot
       -->
       <MoveGripperTo action_name="gigatino/move"
                      frame="tracked_object"
                      x="0.0"
-                     y="-0.035"
-                     z="-0.02"
+                     y="-0.024"
+                     z="-0.03"
                      status_code="{move_status_code}"
                      message="{move_message}"/> 
       <SetGripper action_name="gigatino/gripper"
@@ -41,7 +41,7 @@
                      frame="end_effector_home"
                      x="0.0"
                      y="0.0"
-                     z="0.13"
+                     z="0.12"
                      status_code="{move_status_code}"
                      message="{move_message}"/> 
     </Sequence>

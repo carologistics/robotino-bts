@@ -15,13 +15,14 @@
                      message="{move_message}"/>
       <!-- tracked_object offset directions:
            x higher = grabs further left
-           y higher = grabs further up
+           y higher = grabs lower
            z higher = grabs further away from the robot
       -->
+      <Sleep msec="350"/>
       <MoveGripperTo action_name="gigatino/move"
                      frame="tracked_object"
                      x="0.0"
-                     y="-0.035"
+                     y="-0.015"
                      z="-0.02"
                      status_code="{move_status_code}"
                      message="{move_message}"/> 
