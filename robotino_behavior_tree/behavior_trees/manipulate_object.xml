@@ -1,65 +1,83 @@
 <root BTCPP_format="4">
   <BehaviorTree ID="ManipulateObject">
-    <Sequence>
-      <ScriptCondition code="machine_input_tf != '' &amp;&amp; reference_frame != ''" />
-      <ScriptCondition code="object_type == 'eurobox' || object_type == 'lego'" />
-      <ScriptCondition code="action == 'pick' || action == 'put'" />
+    <RetryUntilSuccessful num_attempts="3">
+      <Sequence>
+        <ScriptCondition code="machine_input_tf != '' &amp;&amp; reference_frame != ''" />
+        <ScriptCondition code="object_type == 'eurobox' || object_type == 'lego'" />
+        <ScriptCondition code="action == 'pick' || action == 'put'" />
 
-      <Switch2 variable="{object_type}" case_1="eurobox" case_2="lego">
-        <Sequence>
-          <Script code="object_prompt := 'grey eurobox EG 3212'; segmentation_confidence := 0.2; gripper_home_z := 0.55; target_color := ''" />
-        </Sequence>
-        <Sequence>
-          <!-- TODO: add lego_type again if subtype-specific grasping or detection becomes necessary. -->
-          <ScriptCondition code="lego_color == 'green' || lego_color == 'blue' || lego_color == 'red' || lego_color == 'yellow'" />
-          <Script code="object_prompt := 'toy brick'; segmentation_confidence := 0.1; gripper_home_z := 0.1; target_color := lego_color" />
-        </Sequence>
-        <AlwaysFailure />
-      </Switch2>
+        <Switch2 variable="{object_type}" case_1="eurobox" case_2="lego">
+          <Sequence>
+            <Script code="object_prompt := 'grey eurobox EG 3212'; segmentation_confidence := 0.2; gripper_home_z := 0.55; target_color := ''" />
+          </Sequence>
+          <Sequence>
+            <!-- TODO: add lego_type again if subtype-specific grasping or detection becomes necessary. -->
+            <ScriptCondition code="lego_color == 'green' || lego_color == 'blue' || lego_color == 'red' || lego_color == 'yellow'" />
+            <Script code="object_prompt := 'toy brick'; segmentation_confidence := 0.1; gripper_home_z := 0.1; target_color := lego_color" />
+          </Sequence>
+          <AlwaysFailure />
+        </Switch2>
 
-      <MoveGripperTo action_name="gigatino/move"
-                     frame="end_effector_home"
+        <RetryUntilSuccessful num_attempts="3">
+          <MoveGripperTo action_name="gigatino/move"
+                         frame="end_effector_home"
+                         x="0.0"
+                         y="0.0"
+                         z="{gripper_home_z}" />
+        </RetryUntilSuccessful>
+
+        <RetryUntilSuccessful num_attempts="3">
+          <NavigateTo
+            frame_id="{machine_input_tf}"
+            x="0.0"
+            y="0.0"
+            yaw="0.0" />
+        </RetryUntilSuccessful>
+
+        <RetryUntilSuccessful num_attempts="3">
+          <ToggleObjectTracking
+            object_prompt="{object_prompt}"
+            reference_frame="{reference_frame}"
+            distance_threshold="10.0"
+            segmentation_confidence="{segmentation_confidence}"
+            target_color="{target_color}"
+            object_tf_name="target_object" />
+        </RetryUntilSuccessful>
+
+        <!-- tracked_object offset directions:
+             x higher = drive further left
+             z higher = drive further into the machine
+        -->
+        <RetryUntilSuccessful num_attempts="3">
+          <MotorMove action_name="motor_move_action"
+                     frame_id="target_object"
                      x="0.0"
-                     y="0.0"
-                     z="{gripper_home_z}" />
+                     z="-0.35"
+                     yaw="0.0" />
+        </RetryUntilSuccessful>
 
-      <NavigateTo
-        frame_id="{machine_input_tf}"
-        x="0.0"
-        y="0.0"
-        yaw="0.0" />
-
-      <ToggleObjectTracking
-        object_prompt="{object_prompt}"
-        reference_frame="{reference_frame}"
-        distance_threshold="10.0"
-        segmentation_confidence="{segmentation_confidence}"
-        target_color="{target_color}"
-        object_tf_name="target_object" />
-
-      <!-- tracked_object offset directions:
-           x higher = drive further left
-           z higher = drive further into the machine
-      -->
-      <MotorMove action_name="motor_move_action"
-                 frame_id="target_object"
-                 x="0.0"
-                 z="-0.35"
-                 yaw="0.0" />
-
-      <Switch2 variable="{action}" case_1="pick" case_2="put">
-        <Switch2 variable="{object_type}" case_1="eurobox" case_2="lego">
-          <SubTree ID="PickBox" _autoremap="true" />
-          <SubTree ID="PickLego" _autoremap="true" />
+        <Switch2 variable="{action}" case_1="pick" case_2="put">
+          <Switch2 variable="{object_type}" case_1="eurobox" case_2="lego">
+            <RetryUntilSuccessful num_attempts="3">
+              <SubTree ID="PickBox" _autoremap="true" />
+            </RetryUntilSuccessful>
+            <RetryUntilSuccessful num_attempts="3">
+              <SubTree ID="PickLego" _autoremap="true" />
+            </RetryUntilSuccessful>
+            <AlwaysFailure />
+          </Switch2>
+          <Switch2 variable="{object_type}" case_1="eurobox" case_2="lego">
+            <RetryUntilSuccessful num_attempts="3">
+              <SubTree ID="PutBox" _autoremap="true" />
+            </RetryUntilSuccessful>
+            <RetryUntilSuccessful num_attempts="3">
+              <SubTree ID="PutLego" _autoremap="true" />
+            </RetryUntilSuccessful>
+            <AlwaysFailure />
+          </Switch2>
           <AlwaysFailure />
         </Switch2>
-        <Switch2 variable="{object_type}" case_1="eurobox" case_2="lego">
-          <SubTree ID="PutBox" _autoremap="true" />
-          <SubTree ID="PutLego" _autoremap="true" />
-          <AlwaysFailure />
-        </Switch2>
-        <AlwaysFailure />
-      </Switch2>
-    </Sequence>
+      </Sequence>
+    </RetryUntilSuccessful>
   </BehaviorTree>
 </root>
