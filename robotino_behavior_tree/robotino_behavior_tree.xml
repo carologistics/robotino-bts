@@ -5,8 +5,9 @@
       <input_port name="action_name" default="motor_move_action">Action server name, usually under /{namespace}/motor_move_action.</input_port>
       <input_port name="server_name">Legacy alias for action_name.</input_port>
       <input_port name="frame_id">Frame of the requested target pose.</input_port>
-      <input_port name="x">Planar target x.</input_port>
-      <input_port name="y">Planar target y.</input_port>
+      <input_port name="x">Target x.</input_port>
+      <input_port name="y">Target y.</input_port>
+      <input_port name="z" default="0.0">Target z.</input_port>
       <input_port name="yaw">Final target yaw in radians. Ignored when a quaternion override is provided.</input_port>
       <input_port name="qx">Optional quaternion x override.</input_port>
       <input_port name="qy">Optional quaternion y override.</input_port>

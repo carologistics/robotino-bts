@@ -42,9 +42,10 @@ public:
   {
     return providedBasicPorts({
         BT::InputPort<std::string>("frame_id",
-                                   "Frame in which x, y, and yaw are expressed"),
+                                   "Frame in which x, y, z, and yaw are expressed"),
         BT::InputPort<double>("x", "Target x position"),
         BT::InputPort<double>("y", "Target y position"),
+        BT::InputPort<double>("z", 0.0, "Target z position"),
         BT::InputPort<double>("yaw", "Target yaw in radians"),
         BT::InputPort<double>("qx", "Optional quaternion x override"),
         BT::InputPort<double>("qy", "Optional quaternion y override"),
@@ -64,12 +65,14 @@ public:
     goal.motor_goal.header.frame_id = namespace_name + "/" + getRequiredInput<std::string>("frame_id");
     goal.motor_goal.pose.position.x = getRequiredInput<double>("x");
     goal.motor_goal.pose.position.y = getRequiredInput<double>("y");
+    goal.motor_goal.pose.position.z = getInput<double>("z").value_or(0.0);
     goal.motor_goal.pose.orientation = getOrientation();
 
     RCLCPP_INFO(logger(),
-                "%s sending goal: frame_id=%s x=%.3f y=%.3f orientation=(%.3f, %.3f, %.3f, %.3f)",
+                "%s sending goal: frame_id=%s x=%.3f y=%.3f z=%.3f orientation=(%.3f, %.3f, %.3f, %.3f)",
                 name().c_str(), goal.motor_goal.header.frame_id.c_str(),
                 goal.motor_goal.pose.position.x, goal.motor_goal.pose.position.y,
+                goal.motor_goal.pose.position.z,
                 goal.motor_goal.pose.orientation.x, goal.motor_goal.pose.orientation.y,
                 goal.motor_goal.pose.orientation.z, goal.motor_goal.pose.orientation.w);
     return true;
