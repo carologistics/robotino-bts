@@ -8,7 +8,7 @@
 
         <Switch2 variable="{object_type}" case_1="eurobox" case_2="lego">
           <Sequence>
-            <Script code="object_prompt := 'grey eurobox EG 3212'; segmentation_confidence := 0.2; gripper_home_z := 0.55; target_color := ''" />
+            <Script code="object_prompt := 'grey plastic box'; segmentation_confidence := 0.05; gripper_home_z := 0.55; target_color := ''" />
           </Sequence>
           <Sequence>
             <!-- TODO: add lego_type again if subtype-specific grasping or detection becomes necessary. -->
@@ -41,7 +41,7 @@
             distance_threshold="10.0"
             segmentation_confidence="{segmentation_confidence}"
             target_color="{target_color}"
-            object_tf_name="target_object" />
+            object_tf_name="tracked_object" />
         </RetryUntilSuccessful>
 
         <!-- tracked_object offset directions:
@@ -50,7 +50,7 @@
         -->
         <RetryUntilSuccessful num_attempts="3">
           <MotorMove action_name="motor_move_action"
-                     frame_id="target_object"
+                     frame_id="tracked_object"
                      x="0.0"
                      z="-0.35"
                      yaw="0.0" />
