@@ -77,6 +77,14 @@ public:
     goal.pose.pose.position.y = getRequiredInput<double>("y");
     goal.pose.pose.orientation = getOrientation();
     goal.behavior_tree = getInput<std::string>("behavior_tree").value_or("");
+
+    RCLCPP_INFO(logger(),
+                "%s sending goal: frame_id=%s x=%.3f y=%.3f orientation=(%.3f, %.3f, %.3f, %.3f) behavior_tree=%s",
+                name().c_str(), goal.pose.header.frame_id.c_str(),
+                goal.pose.pose.position.x, goal.pose.pose.position.y,
+                goal.pose.pose.orientation.x, goal.pose.pose.orientation.y,
+                goal.pose.pose.orientation.z, goal.pose.pose.orientation.w,
+                goal.behavior_tree.c_str());
     return true;
   }
 
@@ -109,6 +117,7 @@ public:
                    name().c_str(), error_code, result.result->error_msg.c_str());
       return BT::NodeStatus::FAILURE;
     }
+    RCLCPP_INFO(logger(), "%s completed successfully", name().c_str());
     return BT::NodeStatus::SUCCESS;
   }
 

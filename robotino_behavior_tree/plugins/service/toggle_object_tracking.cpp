@@ -68,6 +68,15 @@ public:
     request->target_color = getInput<std::string>("target_color").value_or("");
     request->object_tf_name =
       getInput<std::string>("object_tf_name").value_or("target_object");
+
+    RCLCPP_INFO(logger(),
+                "%s sending request: enable=%s prompt='%s' reference_frame=%s "
+                "distance_threshold=%.3f segmentation_confidence=%.3f "
+                "target_color='%s' object_tf_name=%s",
+                name().c_str(), request->enable ? "true" : "false",
+                request->object_prompt.c_str(), request->reference_frame.c_str(),
+                request->distance_threshold, request->segmentation_confidence,
+                request->target_color.c_str(), request->object_tf_name.c_str());
     return true;
   }
 
@@ -80,6 +89,7 @@ public:
       RCLCPP_ERROR(logger(), "%s failed: %s", name().c_str(), response->error.c_str());
       return BT::NodeStatus::FAILURE;
     }
+    RCLCPP_INFO(logger(), "%s completed successfully", name().c_str());
     return BT::NodeStatus::SUCCESS;
   }
 

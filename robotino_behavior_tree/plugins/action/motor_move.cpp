@@ -96,6 +96,7 @@ public:
       RCLCPP_ERROR(logger(), "%s completed with success=false", name().c_str());
       return BT::NodeStatus::FAILURE;
     }
+    RCLCPP_INFO(logger(), "%s completed successfully", name().c_str());
     return BT::NodeStatus::SUCCESS;
   }
 

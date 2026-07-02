@@ -184,7 +184,8 @@ public:
 protected:
   bool onGoalReceived(const std::string & tree_name, const std::string & payload) override
   {
-    (void)tree_name;
+    RCLCPP_INFO(node()->get_logger(), "ExecuteTree goal received: tree=%s payload=%s",
+                tree_name.c_str(), payload.c_str());
     try {
       parsePayload(payload);
     } catch(const std::exception & error) {
@@ -198,6 +199,20 @@ protected:
   {
     auto blackboard = tree.rootBlackboard();
     const auto values = parsePayload(goalPayload());
+    const auto valueOrEmpty = [&values](const std::string & key) -> std::string {
+      const auto value_it = values.find(key);
+      return value_it == values.end() ? std::string{} : value_it->second;
+    };
+
+    RCLCPP_INFO(node()->get_logger(),
+                "ExecuteTree blackboard: machine_input_tf=%s reference_frame=%s "
+                "object_type=%s lego_color=%s action=%s object_prompt=%s",
+                valueOrEmpty("machine_input_tf").c_str(),
+                valueOrEmpty("reference_frame").c_str(),
+                valueOrEmpty("object_type").c_str(),
+                valueOrEmpty("lego_color").c_str(),
+                valueOrEmpty("action").c_str(),
+                valueOrEmpty("object_prompt").c_str());
 
     setIfPresent(blackboard, values, "object_prompt");
     setIfPresent(blackboard, values, "machine_input_tf");

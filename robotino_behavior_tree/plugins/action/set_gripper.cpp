@@ -46,6 +46,8 @@ public:
   bool setGoal(Goal & goal) override
   {
     goal.open = getInput<bool>("open").value_or(false);
+    RCLCPP_INFO(logger(), "%s sending goal: open=%s", name().c_str(),
+                goal.open ? "true" : "false");
     return true;
   }
 
@@ -63,6 +65,7 @@ public:
                    static_cast<unsigned>(status_code), message.c_str());
       return BT::NodeStatus::FAILURE;
     }
+    RCLCPP_INFO(logger(), "%s completed successfully: %s", name().c_str(), message.c_str());
     return BT::NodeStatus::SUCCESS;
   }
 

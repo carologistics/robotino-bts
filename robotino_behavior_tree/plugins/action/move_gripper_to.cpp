@@ -61,6 +61,14 @@ public:
     goal.target_frame = namespace_name + "/" + getRequiredInput<std::string>("frame");
     goal.use_gripper = getInput<bool>("use_gripper").value_or(false);
     goal.gripper_state = getInput<bool>("gripper_state").value_or(false);
+
+    RCLCPP_INFO(logger(),
+                "%s sending goal: frame=%s x=%.3f y=%.3f z=%.3f relative=%s "
+                "use_gripper=%s gripper_state=%s",
+                name().c_str(), goal.target_frame.c_str(), goal.x, goal.y, goal.z,
+                goal.relative ? "true" : "false",
+                goal.use_gripper ? "true" : "false",
+                goal.gripper_state ? "true" : "false");
     return true;
   }
 
@@ -81,6 +89,7 @@ public:
                    static_cast<unsigned>(status_code), message.c_str());
       return BT::NodeStatus::FAILURE;
     }
+    RCLCPP_INFO(logger(), "%s completed successfully: %s", name().c_str(), message.c_str());
     return BT::NodeStatus::SUCCESS;
   }
 
