@@ -45,14 +45,23 @@
         </RetryUntilSuccessful>
 
         <Sleep msec="500"/>
-        <!-- tracked_object_approach encodes the stand-off distance and faces the object. -->
-        <RetryUntilSuccessful num_attempts="3">
-          <MotorMove action_name="motor_move_action"
-                     frame_id="tracked_object_approach"
-                     x="0.0"
-                     y="0.0"
-                     yaw="0.0" />
-        </RetryUntilSuccessful>
+        <Switch2 variable="{action}" case_1="pick" case_2="put">
+          <RetryUntilSuccessful num_attempts="3">
+            <MotorMove action_name="motor_move_action"
+                       frame_id="tracked_object_approach"
+                       x="0.0"
+                       y="0.0"
+                       yaw="0.0" />
+          </RetryUntilSuccessful>
+          <RetryUntilSuccessful num_attempts="3">
+            <MotorMove action_name="motor_move_action"
+                       frame_id="base_link"
+                       x="0.3"
+                       y="0.0"
+                       yaw="0.0" />
+          </RetryUntilSuccessful>
+          <AlwaysFailure />
+        </Switch2>
 
         <Switch2 variable="{action}" case_1="pick" case_2="put">
           <Switch2 variable="{object_type}" case_1="eurobox" case_2="lego">
