@@ -3,34 +3,30 @@
   <BehaviorTree ID="PickBox">
     <Sequence>
       <SetGripper action_name="gigatino/gripper"
-                     open="true"
-                     status_code="{gripper_status_code}"
-                     message="{gripper_message}"/>
-      <MoveGripperTo action_name="gigatino/move"
-                     frame="end_effector_home"
-                     x="0.0"
-                     y="0.0"
-                     z="0.035"
-                     status_code="{move_status_code}"
-                     message="{move_message}"/>
+                  open="true"
+                  status_code="{gripper_status_code}"
+                  message="{gripper_message}" />
+      <SubTree ID="MoveGripperToReferenced"
+               frame="end_effector_home"
+               x="0.0"
+               y="0.0"
+               z="0.035" />
       <!-- tracked_object offset directions:
            x higher = grabs further left
            y higher = grabs lower
            z higher = grabs further away from the robot
       -->
-      <Sleep msec="350"/>
-      <MoveGripperTo action_name="gigatino/move"
-                     frame="tracked_object"
-                     x="0.0"
-                     y="-0.01"
-                     z="-0.025"
-                     status_code="{move_status_code}"
-                     message="{move_message}"/> 
+      <Sleep msec="350" />
+      <SubTree ID="MoveGripperToReferenced"
+               frame="tracked_object"
+               x="0.0"
+               y="-0.01"
+               z="-0.025" />
       <SetGripper action_name="gigatino/gripper"
-                     open="false"
-                     status_code="{gripper_status_code}"
-                     message="{gripper_message}"/>
-      <Sleep msec="200"/>
+                  open="false"
+                  status_code="{gripper_status_code}"
+                  message="{gripper_message}" />
+      <Sleep msec="200" />
       <!-- <MoveGripperTo action_name="gigatino/move"
                      frame="gripper_end_effector"
                      x="0.0"
@@ -38,13 +34,11 @@
                      z="0.03"
                      status_code="{move_status_code}"
                      message="{move_message}"/> -->
-      <MoveGripperTo action_name="gigatino/move"
-                     frame="end_effector_home"
-                     x="0.0"
-                     y="0.0"
-                     z="0.14"
-                     status_code="{move_status_code}"
-                     message="{move_message}"/> 
+      <SubTree ID="MoveGripperToReferenced"
+               frame="end_effector_home"
+               x="0.0"
+               y="0.0"
+               z="0.14" />
     </Sequence>
   </BehaviorTree>
 </root>

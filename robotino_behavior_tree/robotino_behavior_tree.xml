@@ -43,6 +43,19 @@
       <output_port name="message">Result message from the action server.</output_port>
     </Action>
 
+    <Action ID="CalibrateGripper">
+      <input_port name="action_name" default="gigatino/calibrate">Gripper calibration action server name.</input_port>
+      <input_port name="server_name">Legacy alias for action_name.</input_port>
+
+      <output_port name="status_code">Raw gigatino status code from the action result.</output_port>
+      <output_port name="message">Result message from the action server.</output_port>
+    </Action>
+
+    <Condition ID="IsGripperReferenced">
+      <input_port name="topic_name" default="gigatino/feedback">Gripper feedback topic.</input_port>
+      <output_port name="referenced">True when the gripper reports that its Cartesian reference is known.</output_port>
+    </Condition>
+
     <Action ID="NavigateTo">
       <input_port name="action_name" default="navigate_to_pose">Action server name for nav2_msgs/action/NavigateToPose.</input_port>
       <input_port name="frame_id">Frame in which x, y, and yaw are expressed.</input_port>
@@ -76,6 +89,13 @@
       <output_port name="success">Whether the service accepted the request.</output_port>
       <output_port name="error">Error returned by the service.</output_port>
     </Action>
+
+    <SubTree ID="MoveGripperToReferenced">
+      <input_port name="frame">Target frame for the Cartesian goal.</input_port>
+      <input_port name="x">Target x in frame.</input_port>
+      <input_port name="y">Target y in frame.</input_port>
+      <input_port name="z">Target z in frame.</input_port>
+    </SubTree>
 
     <SubTree ID="ManipulateObject">
       <input_port name="machine_input_tf">TF frame of the machine input pose in map.</input_port>

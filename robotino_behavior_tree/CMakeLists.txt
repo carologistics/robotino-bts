@@ -17,6 +17,8 @@ find_package(robotino_vision_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 
+set(gigatino_msgs_typesupport gigatino_msgs::gigatino_msgs__rosidl_typesupport_cpp)
+
 set(dependencies
   behaviortree_ros2
   btcpp_ros2_interfaces
@@ -31,6 +33,7 @@ set(dependencies
 )
 
 set(action_node_list
+  calibrate_gripper
   motor_move
   move_gripper_to
   navigate_to
@@ -40,6 +43,9 @@ set(action_node_list
 foreach(action_node ${action_node_list})
   add_library(${action_node}_bt_node SHARED plugins/action/${action_node}.cpp)
   ament_target_dependencies(${action_node}_bt_node ${dependencies})
+  if(TARGET ${gigatino_msgs_typesupport})
+    target_link_libraries(${action_node}_bt_node ${gigatino_msgs_typesupport})
+  endif()
   target_compile_definitions(${action_node}_bt_node PRIVATE BT_PLUGIN_EXPORT)
   list(APPEND plugin_libs ${action_node}_bt_node)
 endforeach()
@@ -51,8 +57,25 @@ set(service_node_list
 foreach(service_node ${service_node_list})
   add_library(${service_node}_bt_node SHARED plugins/service/${service_node}.cpp)
   ament_target_dependencies(${service_node}_bt_node ${dependencies})
+  if(TARGET ${gigatino_msgs_typesupport})
+    target_link_libraries(${service_node}_bt_node ${gigatino_msgs_typesupport})
+  endif()
   target_compile_definitions(${service_node}_bt_node PRIVATE BT_PLUGIN_EXPORT)
   list(APPEND plugin_libs ${service_node}_bt_node)
+endforeach()
+
+set(condition_node_list
+  is_gripper_referenced
+)
+
+foreach(condition_node ${condition_node_list})
+  add_library(${condition_node}_bt_node SHARED plugins/condition/${condition_node}.cpp)
+  ament_target_dependencies(${condition_node}_bt_node ${dependencies})
+  if(TARGET ${gigatino_msgs_typesupport})
+    target_link_libraries(${condition_node}_bt_node ${gigatino_msgs_typesupport})
+  endif()
+  target_compile_definitions(${condition_node}_bt_node PRIVATE BT_PLUGIN_EXPORT)
+  list(APPEND plugin_libs ${condition_node}_bt_node)
 endforeach()
 
 add_executable(robotino_tree_server src/robotino_tree_server.cpp)

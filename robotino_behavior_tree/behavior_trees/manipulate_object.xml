@@ -1,3 +1,4 @@
+<?xml version="1.0"?>
 <root BTCPP_format="4">
   <BehaviorTree ID="ManipulateObject">
     <RetryUntilSuccessful num_attempts="3">
@@ -22,13 +23,11 @@
           <AlwaysFailure />
         </Switch2>
 
-        <RetryUntilSuccessful num_attempts="3">
-          <MoveGripperTo action_name="gigatino/move"
-                         frame="end_effector_home"
-                         x="0.0"
-                         y="0.0"
-                         z="{gripper_home_z}" />
-        </RetryUntilSuccessful>
+        <SubTree ID="MoveGripperToReferenced"
+                 frame="end_effector_home"
+                 x="0.0"
+                 y="0.0"
+                 z="{gripper_home_z}" />
 
         <RetryUntilSuccessful num_attempts="3">
           <NavigateTo
