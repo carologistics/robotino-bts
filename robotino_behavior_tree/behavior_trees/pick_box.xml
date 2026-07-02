@@ -10,7 +10,7 @@
                      frame="end_effector_home"
                      x="0.0"
                      y="0.0"
-                     z="0.05"
+                     z="0.035"
                      status_code="{move_status_code}"
                      message="{move_message}"/>
       <!-- tracked_object offset directions:
@@ -22,8 +22,8 @@
       <MoveGripperTo action_name="gigatino/move"
                      frame="tracked_object"
                      x="0.0"
-                     y="-0.015"
-                     z="-0.02"
+                     y="-0.01"
+                     z="-0.025"
                      status_code="{move_status_code}"
                      message="{move_message}"/> 
       <SetGripper action_name="gigatino/gripper"
@@ -31,18 +31,18 @@
                      status_code="{gripper_status_code}"
                      message="{gripper_message}"/>
       <Sleep msec="200"/>
-      <MoveGripperTo action_name="gigatino/move"
+      <!-- <MoveGripperTo action_name="gigatino/move"
                      frame="gripper_end_effector"
                      x="0.0"
                      y="0.0"
                      z="0.03"
                      status_code="{move_status_code}"
-                     message="{move_message}"/>
+                     message="{move_message}"/> -->
       <MoveGripperTo action_name="gigatino/move"
                      frame="end_effector_home"
                      x="0.0"
                      y="0.0"
-                     z="0.13"
+                     z="0.14"
                      status_code="{move_status_code}"
                      message="{move_message}"/> 
     </Sequence>
