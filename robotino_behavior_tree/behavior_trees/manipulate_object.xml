@@ -30,13 +30,13 @@
                          z="{gripper_home_z}" />
         </RetryUntilSuccessful>
 
-        <!-- <RetryUntilSuccessful num_attempts="3">
+        <RetryUntilSuccessful num_attempts="3">
           <NavigateTo
             frame_id="{machine_input_tf}"
             x="0.0"
             y="0.0"
             yaw="0.0" />
-        </RetryUntilSuccessful> -->
+        </RetryUntilSuccessful>
 
         <RetryUntilSuccessful num_attempts="3">
           <ToggleObjectTracking
