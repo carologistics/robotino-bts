@@ -179,7 +179,17 @@ std::map<std::string, std::string> parsePayload(const std::string & payload)
 class RobotinoTreeServer : public BT::TreeExecutionServer
 {
 public:
-  using BT::TreeExecutionServer::TreeExecutionServer;
+  explicit RobotinoTreeServer(const rclcpp::NodeOptions & options)
+  : BT::TreeExecutionServer(options)
+  {
+    try {
+      executeRegistration();
+    } catch(const std::exception & error) {
+      RCLCPP_FATAL(node()->get_logger(),
+                   "Failed to register behavior tree plugins/trees: %s", error.what());
+      throw;
+    }
+  }
 
 protected:
   bool onGoalReceived(const std::string & tree_name, const std::string & payload) override
@@ -241,22 +251,34 @@ int main(int argc, char* argv[])
 {
   rclcpp::init(argc, argv);
 
-  rclcpp::NodeOptions options;
-  auto action_server = std::make_shared<robotino_behavior_tree::RobotinoTreeServer>(options);
+  try {
+    rclcpp::NodeOptions options;
+    auto action_server = std::make_shared<robotino_behavior_tree::RobotinoTreeServer>(options);
 
-  auto node = action_server->node();
-  std::string ns = node->get_namespace();
-  // Strip leading slash if present
-  if (!ns.empty() && ns[0] == '/') {
-    ns = ns.substr(1);
+    auto node = action_server->node();
+    std::string ns = node->get_namespace();
+    // Strip leading slash if present
+    if (!ns.empty() && ns[0] == '/') {
+      ns = ns.substr(1);
+    }
+    action_server->globalBlackboard()->set("namespace", ns);
+
+    rclcpp::executors::MultiThreadedExecutor exec(rclcpp::ExecutorOptions(), 0, false,
+                                                  std::chrono::milliseconds(250));
+    exec.add_node(action_server->node());
+    exec.spin();
+    exec.remove_node(action_server->node());
+  } catch(const std::exception & error) {
+    RCLCPP_FATAL(rclcpp::get_logger("robotino_tree_server"),
+                 "Unhandled exception in robotino_tree_server: %s", error.what());
+    rclcpp::shutdown();
+    return 1;
+  } catch(...) {
+    RCLCPP_FATAL(rclcpp::get_logger("robotino_tree_server"),
+                 "Unhandled non-standard exception in robotino_tree_server");
+    rclcpp::shutdown();
+    return 1;
   }
-  action_server->globalBlackboard()->set("namespace", ns);
-
-  rclcpp::executors::MultiThreadedExecutor exec(rclcpp::ExecutorOptions(), 0, false,
-                                                std::chrono::milliseconds(250));
-  exec.add_node(action_server->node());
-  exec.spin();
-  exec.remove_node(action_server->node());
 
   rclcpp::shutdown();
   return 0;
