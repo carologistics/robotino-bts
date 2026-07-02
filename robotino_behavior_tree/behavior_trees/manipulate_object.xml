@@ -8,7 +8,10 @@
 
         <Switch2 variable="{object_type}" case_1="eurobox" case_2="lego">
           <Sequence>
-            <Script code="object_prompt := 'grey plastic box'; segmentation_confidence := 0.05; gripper_home_z := 0.035; target_color := ''" />
+            <Switch2 variable="{action}" case_1="pick" case_2="put">
+              <Script code="object_prompt := 'grey plastic box'; segmentation_confidence := 0.05; gripper_home_z := 0.035; target_color := ''" />
+              <Script code="object_prompt := 'grey plastic box'; segmentation_confidence := 0.05; gripper_home_z := 0.14; target_color := ''" />
+            </Switch2>
           </Sequence>
           <Sequence>
             <!-- TODO: add lego_type again if subtype-specific grasping or detection becomes necessary. -->
