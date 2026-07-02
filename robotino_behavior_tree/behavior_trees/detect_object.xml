@@ -2,11 +2,12 @@
   <BehaviorTree ID="DetectObject">
     <Sequence>
       <ToggleObjectTracking
-        object_prompt="{object_prompt}"
+        object_prompt="grey plastic box"
         reference_frame="base_link"
-        distance_threshold="10.0"
-        segmentation_confidence="0.2"
-        object_tf_name="target_object"/>
+        distance_threshold="3.0"
+        segmentation_confidence="0.05"
+        target_color=""
+        object_tf_name="tracked_object" />
     </Sequence>
   </BehaviorTree>
 </root>
