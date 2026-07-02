@@ -3,7 +3,7 @@
     action_name: "robotino_behavior_server"
     tick_frequency: 50
     groot2_port: 1667
-    ros_plugins_timeout: 30000
+    ros_plugins_timeout: 10000
 
     plugins:
       - behaviortree_cpp/bt_plugins
