@@ -1,4 +1,5 @@
 #include <cmath>
+#include <chrono>
 #include <string>
 
 #include "behaviortree_ros2/bt_action_node.hpp"
@@ -17,6 +18,8 @@ inline BT::RosNodeParams withDefaultActionName(const BT::RosNodeParams& params,
   {
     updated.default_port_value = action_name;
   }
+  updated.server_timeout = std::chrono::seconds(3);
+  updated.wait_for_server_timeout = std::chrono::seconds(3);
   return updated;
 }
 
@@ -53,9 +56,42 @@ public:
         BT::InputPort<bool>("relative", false, "Whether the move is relative"),
         BT::InputPort<bool>("use_gripper", false, "Whether to command the gripper state"),
         BT::InputPort<bool>("gripper_state", false, "Requested gripper state"),
+        BT::InputPort<int>("timeout_ms", 3000,
+                           "Maximum time to wait for the action to complete; 0 disables"),
         BT::OutputPort<unsigned>("status_code", "gigatino status code"),
         BT::OutputPort<std::string>("message", "Result message from the action server"),
     });
+  }
+
+  BT::NodeStatus tick() override
+  {
+    if(status() == BT::NodeStatus::IDLE)
+    {
+      timeout_ms_ = getInput<int>("timeout_ms").value_or(3000);
+      if(timeout_ms_ < 0)
+      {
+        throw BT::RuntimeError("MoveGripperTo timeout_ms must be >= 0");
+      }
+      action_started_time_ = now();
+    }
+
+    const auto node_status = Base::tick();
+    if(node_status == BT::NodeStatus::RUNNING && timeout_ms_ > 0)
+    {
+      const auto timeout =
+          rclcpp::Duration::from_seconds(static_cast<double>(timeout_ms_) / 1000.0);
+      if((now() - action_started_time_) > timeout)
+      {
+        const auto message = name() + " timed out after " + std::to_string(timeout_ms_) + " ms";
+        setOutput("status_code", static_cast<unsigned>(gigatino_msgs::msg::StatusCode::UNKNOWN));
+        setOutput("message", message);
+        RCLCPP_ERROR(logger(), "%s", message.c_str());
+        Base::halt();
+        resetStatus();
+        return BT::NodeStatus::FAILURE;
+      }
+    }
+    return node_status;
   }
 
   bool setGoal(Goal& goal) override
@@ -212,6 +248,9 @@ private:
     }
     return value.value();
   }
+
+  rclcpp::Time action_started_time_;
+  int timeout_ms_ = 3000;
 };
 
 }  // namespace robotino_behavior_tree

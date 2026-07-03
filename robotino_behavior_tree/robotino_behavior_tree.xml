@@ -34,6 +34,7 @@
       <input_port name="relative" default="false">Whether the requested move is relative.</input_port>
       <input_port name="use_gripper" default="false">Whether to command the gripper state together with the move.</input_port>
       <input_port name="gripper_state" default="false">Requested gripper state.</input_port>
+      <input_port name="timeout_ms" default="3000">Maximum time to wait for the action to complete; 0 disables.</input_port>
 
       <output_port name="success">True when the action returns a SUCCESS status code.</output_port>
       <output_port name="status_code">Raw gigatino status code from the action result.</output_port>
