@@ -1,137 +1,140 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <root BTCPP_format="4">
   <BehaviorTree ID="ManipulateObject">
-    <RetryUntilSuccessful num_attempts="3">
+    <RetryUntilSuccessful num_attempts="5">
       <Sequence>
-        <ScriptCondition code="machine_input_tf != '' &amp;&amp; reference_frame != ''" />
-        <ScriptCondition code="object_type == 'eurobox' || object_type == 'lego'" />
-        <ScriptCondition code="action == 'pick' || action == 'put'" />
-
-        <Switch2 variable="{object_type}" case_1="eurobox" case_2="lego">
-          <Sequence>
-            <Switch2 variable="{action}" case_1="pick" case_2="put">
-              <Script code="object_prompt := 'grey plastic box'; segmentation_confidence := 0.05; gripper_home_z := 0.035; target_color := ''" />
-              <Script code="object_prompt := 'grey plastic box'; segmentation_confidence := 0.05; gripper_home_z := 0.14; target_color := ''" />
-              <AlwaysFailure />
-            </Switch2>
-          </Sequence>
-          <Sequence>
-            <!-- TODO: add lego_type again if subtype-specific grasping or detection becomes necessary. -->
-            <ScriptCondition code="lego_color == 'green' || lego_color == 'blue' || lego_color == 'red' || lego_color == 'yellow'" />
-            <Script code="object_prompt := 'toy brick'; segmentation_confidence := 0.1; gripper_home_z := 0.1; target_color := lego_color" />
-          </Sequence>
-          <AlwaysFailure />
-        </Switch2>
-
-        <!-- Position Gripper -->
+        <ScriptCondition code="action == &apos;pick&apos; || action == &apos;put&apos;"/>
         <SubTree ID="MoveGripperToReferenced"
                  frame="end_effector_home"
                  x="0.0"
                  y="0.0"
-                 z="{gripper_home_z}" />
-
-        <!-- Navigate (and Detect Object if Picking) -->
+                 z="{gripper_home_z}"/>
         <RetryUntilSuccessful num_attempts="3">
-          <Sequence>
-            <NavigateTo
-              frame_id="{machine_input_tf}"
-              x="0.0"
-              y="0.0"
-              yaw="0.0" />
-            <Switch2 variable="{action}" case_1="pick" case_2="put">
-              <AcquireObjectTracking
-                action_name="acquire_object_tracking"
-                object_prompt="{object_prompt}"
-                reference_frame="{reference_frame}"
-                distance_threshold="0.50"
-                approach_distance="0.45"
-                segmentation_confidence="{segmentation_confidence}"
-                target_color="{target_color}"
-                object_tf_name="tracked_object"
-                approach_tf_name="tracked_object_approach"
-                timeout_sec="5.0"
-                min_stable_frames="3"
-                max_position_jump="0.15"
-                success="{object_acquisition_success}"
-                error="{object_acquisition_error}"
-                acquired_object_tf_name="{acquired_object_tf_name}"
-                acquired_approach_tf_name="{acquired_approach_tf_name}" />
-              <AlwaysSuccess />
-              <AlwaysFailure />
-            </Switch2>
-          </Sequence>
-        </RetryUntilSuccessful>
-
-        <!-- Motor Move to the Object/Shelf -->
-        <Switch2 variable="{action}" case_1="pick" case_2="put">
-          <RetryUntilSuccessful num_attempts="3">
-            <MotorMove action_name="motor_move_action"
-                      frame_id="tracked_object_approach"
+          <NavigateTo action_name="navigate_to_pose"
+                      frame_id="{machine_input_tf}"
                       x="0.0"
                       y="0.0"
-                      yaw="0.0" />
-          </RetryUntilSuccessful>
-          <RetryUntilSuccessful num_attempts="2">
-            <MotorMove action_name="motor_move_action"
-                       frame_id="base_link"
-                       x="0.3"
-                       y="0.0"
-                       yaw="0.0" />
-          </RetryUntilSuccessful>
-          <AlwaysFailure />
+                      yaw="0.0"
+                      qx=""
+                      qy=""
+                      qz=""
+                      qw=""
+                      behavior_tree=""
+                      current_pose=""
+                      navigation_time=""
+                      estimated_time_remaining=""
+                      number_of_recoveries=""
+                      distance_remaining=""
+                      error_code=""
+                      error_msg=""/>
+        </RetryUntilSuccessful>
+        <MotorMove action_name="motor_move_action"
+                   server_name=""
+                   frame_id="base_link"
+                   x="0.3"
+                   y="0.0"
+                   z="0.0"
+                   yaw="0.0"
+                   qx=""
+                   qy=""
+                   qz=""
+                   qw=""
+                   success=""
+                   distance_to_target=""/>
+        <MoveToShelf action_name="move_to_shelf_action"
+                     server_name=""
+                     timeout="10.0"
+                     speed="0.1"
+                     success=""
+                     message=""
+                     front_range=""
+                     elapsed_time=""/>
+        <Switch2 case_1="pick"
+                 case_2="put"
+                 variable="{action}">
+          <SubTree ID="PickBox"
+                   _autoremap="true"/>
+          <SubTree ID="PutBox"
+                   _autoremap="true"/>
+          <AlwaysFailure/>
         </Switch2>
-
-        <!-- (Detect Object and Pick) or Put the Object -->
-        <Switch2 variable="{action}" case_1="pick" case_2="put">
-          <Sequence>
-            <AcquireObjectTracking
-              action_name="acquire_object_tracking"
-              object_prompt="{object_prompt}"
-              reference_frame="{reference_frame}"
-              distance_threshold="0.50"
-              approach_distance="0.45"
-              segmentation_confidence="{segmentation_confidence}"
-              target_color="{target_color}"
-              object_tf_name="tracked_object"
-              approach_tf_name="tracked_object_approach"
-              timeout_sec="5.0"
-              min_stable_frames="3"
-              max_position_jump="0.15"
-              success="{object_acquisition_success}"
-              error="{object_acquisition_error}"
-              acquired_object_tf_name="{acquired_object_tf_name}"
-              acquired_approach_tf_name="{acquired_approach_tf_name}" />
-            <Switch2 variable="{object_type}" case_1="eurobox" case_2="lego">
-              <RetryUntilSuccessful num_attempts="3">
-                <SubTree ID="PickBox" _autoremap="true" />
-              </RetryUntilSuccessful>
-              <RetryUntilSuccessful num_attempts="3">
-                <SubTree ID="PickLego" _autoremap="true" />
-              </RetryUntilSuccessful>
-              <AlwaysFailure />
-            </Switch2>
-          </Sequence>
-          <Switch2 variable="{object_type}" case_1="eurobox" case_2="lego">
-            <RetryUntilSuccessful num_attempts="3">
-              <SubTree ID="PutBox" _autoremap="true" />
-            </RetryUntilSuccessful>
-            <RetryUntilSuccessful num_attempts="3">
-              <SubTree ID="PutLego" _autoremap="true" />
-            </RetryUntilSuccessful>
-            <AlwaysFailure />
-          </Switch2>
-          <AlwaysFailure />
-        </Switch2>
-
-        <!-- Motor Move Backwards -->
         <RetryUntilSuccessful num_attempts="2">
           <MotorMove action_name="motor_move_action"
+                     server_name=""
                      frame_id="base_link"
                      x="-0.5"
                      y="0.0"
-                     yaw="0.0" />
+                     z="0.0"
+                     yaw="0.0"
+                     qx=""
+                     qy=""
+                     qz=""
+                     qw=""
+                     success=""
+                     distance_to_target=""/>
         </RetryUntilSuccessful>
       </Sequence>
     </RetryUntilSuccessful>
   </BehaviorTree>
+
+  <!-- Description of Node Models (used by Groot) -->
+  <TreeNodesModel>
+    <Action ID="MotorMove">
+      <input_port name="action_name"
+                  default="motor_move_action">Action server name, usually under /{namespace}/motor_move_action.</input_port>
+      <input_port name="server_name">Legacy alias for action_name.</input_port>
+      <input_port name="frame_id">Frame of the requested target pose.</input_port>
+      <input_port name="x">Target x.</input_port>
+      <input_port name="y">Target y.</input_port>
+      <input_port name="z"
+                  default="0.0">Target z.</input_port>
+      <input_port name="yaw">Final target yaw in radians. Ignored when a quaternion override is provided.</input_port>
+      <input_port name="qx">Optional quaternion x override.</input_port>
+      <input_port name="qy">Optional quaternion y override.</input_port>
+      <input_port name="qz">Optional quaternion z override.</input_port>
+      <input_port name="qw">Optional quaternion w override.</input_port>
+      <output_port name="success">Action-level success flag from motor_move_msgs/Result.</output_port>
+      <output_port name="distance_to_target">Latest feedback distance to target.</output_port>
+    </Action>
+    <SubTree ID="MoveGripperToReferenced">
+      <input_port name="frame">Target frame for the Cartesian goal.</input_port>
+      <input_port name="x">Target x in frame.</input_port>
+      <input_port name="y">Target y in frame.</input_port>
+      <input_port name="z">Target z in frame.</input_port>
+    </SubTree>
+    <Action ID="MoveToShelf">
+      <input_port name="action_name"
+                  default="move_to_shelf_action">Action server name, usually under /{namespace}/move_to_shelf_action.</input_port>
+      <input_port name="server_name">Legacy alias for action_name.</input_port>
+      <input_port name="timeout"
+                  default="10.0">Maximum move-to-shelf time in seconds.</input_port>
+      <input_port name="speed"
+                  default="0.1">Approach speed.</input_port>
+      <output_port name="success">Action-level success flag from motor_move_msgs/Result.</output_port>
+      <output_port name="message">Result message from the action server.</output_port>
+      <output_port name="front_range">Feedback front range.</output_port>
+      <output_port name="elapsed_time">Feedback elapsed time in seconds.</output_port>
+    </Action>
+    <Action ID="NavigateTo">
+      <input_port name="action_name"
+                  default="navigate_to_pose">Action server name for nav2_msgs/action/NavigateToPose.</input_port>
+      <input_port name="frame_id">Frame in which x, y, and yaw are expressed.</input_port>
+      <input_port name="x">Target x position.</input_port>
+      <input_port name="y">Target y position.</input_port>
+      <input_port name="yaw">Target yaw in radians. Used when quaternion override is not provided.</input_port>
+      <input_port name="qx">Optional quaternion x override. Must be provided together with qy, qz, and qw.</input_port>
+      <input_port name="qy">Optional quaternion y override. Must be provided together with qx, qz, and qw.</input_port>
+      <input_port name="qz">Optional quaternion z override. Must be provided together with qx, qy, and qw.</input_port>
+      <input_port name="qw">Optional quaternion w override. Must be provided together with qx, qy, and qz.</input_port>
+      <input_port name="behavior_tree">Optional which behavior_tree to load.</input_port>
+      <output_port name="current_pose">Feedback current pose.</output_port>
+      <output_port name="navigation_time">Feedback time spent navigating.</output_port>
+      <output_port name="estimated_time_remaining">Feedback estimated time remaining to target.</output_port>
+      <output_port name="number_of_recoveries">Feedback number of recovery maneuvers.</output_port>
+      <output_port name="distance_remaining">Feedback remaining distance to target.</output_port>
+      <output_port name="error_code">Result error code from NavigateToPose.</output_port>
+      <output_port name="error_msg">Result error message from nav2.</output_port>
+    </Action>
+  </TreeNodesModel>
+
 </root>
