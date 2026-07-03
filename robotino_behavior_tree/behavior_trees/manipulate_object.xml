@@ -6,7 +6,7 @@
         <ScriptCondition code="action == &apos;pick&apos; || action == &apos;put&apos;"/>
          <Switch2 variable="{action}" case_1="pick" case_2="put">
 	   <Sequence>
-             <Script code="gripper_home_z := 0.014" />
+             <Script code="gripper_home_z := 0.08" />
              <SetGripper action_name="gigatino/gripper"
                   open="true"
                   status_code="{gripper_status_code}"
@@ -27,12 +27,6 @@
                       y="0.0"
                       yaw="0.0"/>
         </RetryUntilSuccessful>
-        <MotorMove action_name="motor_move_action"
-                   frame_id="base_link"
-                   x="0.3"
-                   y="0.0"
-                   z="0.0"
-                   yaw="0.0"/>
         <GrayBoxAlign action_name="gray_box_align_action"
                       timeout="20.0"
                       speed="0.1"/>
