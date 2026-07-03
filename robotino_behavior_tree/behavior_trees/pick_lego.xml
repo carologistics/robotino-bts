@@ -10,7 +10,8 @@
                frame="end_effector_home"
                x="0.0"
                y="0.0"
-               z="0.12" />
+               z="0.12"
+               z_override_in_end_effector_home="" />
       <!-- tracked_object offset directions:
            x higher = grabs further left
            y higher = grabs lower
@@ -20,7 +21,8 @@
                frame="tracked_object"
                x="0.0"
                y="-0.024"
-               z="-0.03" />
+               z="-0.03"
+               z_override_in_end_effector_home="" />
       <SetGripper action_name="gigatino/gripper"
                   open="false"
                   status_code="{gripper_status_code}"
@@ -30,12 +32,14 @@
                frame="gripper_end_effector"
                x="0.0"
                y="0.0"
-               z="0.03" />
+               z="0.03"
+               z_override_in_end_effector_home="" />
       <SubTree ID="MoveGripperToReferenced"
                frame="end_effector_home"
                x="0.0"
                y="0.0"
-               z="0.12" />
+               z="0.12"
+               z_override_in_end_effector_home="" />
     </Sequence>
   </BehaviorTree>
 </root>

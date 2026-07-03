@@ -25,6 +25,7 @@
       <input_port name="x">Target x in frame.</input_port>
       <input_port name="y">Target y in frame.</input_port>
       <input_port name="z">Target z in frame.</input_port>
+      <input_port name="z_override_in_end_effector_home" default="">Optional z target in end_effector_home after transforming absolute goals; empty disables.</input_port>
       <input_port name="x_min" default="0.0">Minimum accepted x target in end_effector_home, meters.</input_port>
       <input_port name="x_max" default="0.19">Maximum accepted x target in end_effector_home, meters.</input_port>
       <input_port name="z_min" default="0.0">Minimum accepted z target in end_effector_home, meters.</input_port>
@@ -126,6 +127,7 @@
       <input_port name="x">Target x in frame.</input_port>
       <input_port name="y">Target y in frame.</input_port>
       <input_port name="z">Target z in frame.</input_port>
+      <input_port name="z_override_in_end_effector_home" default="">Optional z target in end_effector_home after transforming absolute goals; empty disables.</input_port>
     </SubTree>
 
     <SubTree ID="ManipulateObject">

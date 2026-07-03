@@ -28,7 +28,8 @@
                  frame="end_effector_home"
                  x="0.0"
                  y="0.0"
-                 z="{gripper_home_z}" />
+                 z="{gripper_home_z}"
+               z_override_in_end_effector_home="" />
 
         <!-- Navigate (and Detect Object if Picking) -->
         <RetryUntilSuccessful num_attempts="3">
@@ -89,7 +90,7 @@
               object_prompt="{object_prompt}"
               reference_frame="{reference_frame}"
               distance_threshold="0.50"
-              approach_distance="0.45"
+              approach_distance="0.35"
               segmentation_confidence="{segmentation_confidence}"
               target_color="{target_color}"
               object_tf_name="tracked_object"

@@ -1,6 +1,7 @@
 #include <cmath>
 #include <chrono>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "geometry_msgs/msg/pose_stamped.hpp"
@@ -64,6 +65,9 @@ public:
         BT::InputPort<double>("x", "Target x in frame"),
         BT::InputPort<double>("y", "Target y in frame"),
         BT::InputPort<double>("z", "Target z in frame"),
+        BT::InputPort<std::string>(
+            "z_override_in_end_effector_home", "",
+            "Optional z target in end_effector_home after transforming absolute goals; empty disables"),
         BT::InputPort<double>("x_min", 0.0, "Minimum accepted x target in end_effector_home, meters"),
         BT::InputPort<double>("x_max", 0.19, "Maximum accepted x target in end_effector_home, meters"),
         BT::InputPort<double>("z_min", 0.0, "Minimum accepted z target in end_effector_home, meters"),
@@ -127,6 +131,7 @@ public:
     const double x_max = getInput<double>("x_max").value_or(0.19);
     const double z_min = getInput<double>("z_min").value_or(0.0);
     const double z_max = getInput<double>("z_max").value_or(0.14);
+    const auto z_override_in_limit_frame = getOptionalDoubleInput("z_override_in_end_effector_home");
 
     double target_x = raw_x;
     double target_y = raw_y;
@@ -135,6 +140,11 @@ public:
 
     if(goal.relative)
     {
+      if(z_override_in_limit_frame)
+      {
+        throw BT::RuntimeError(name(),
+                               ": z_override_in_end_effector_home is only valid for absolute moves");
+      }
       target_x = normalizeAxisInput("x", raw_x, x_min, x_max, upper_limit_factor,
                                     lower_limit_fraction);
       target_z = normalizeAxisInput("z", raw_z, z_min, z_max, upper_limit_factor,
@@ -147,17 +157,25 @@ public:
     {
       const auto target_in_limit_frame = transformTargetToFrame(
           requested_frame, raw_x, raw_y, raw_z, limit_frame);
+      double z_before_limits = target_in_limit_frame.pose.position.z;
       target_x = normalizeAxisInput("x", target_in_limit_frame.pose.position.x,
                                     x_min, x_max, upper_limit_factor,
                                     lower_limit_fraction);
       target_y = target_in_limit_frame.pose.position.y;
-      target_z = normalizeAxisInput("z", target_in_limit_frame.pose.position.z,
-                                    z_min, z_max, upper_limit_factor,
-                                    lower_limit_fraction);
+      if(z_override_in_limit_frame)
+      {
+        RCLCPP_INFO(logger(),
+                    "%s overriding transformed z in %s from %.3f to %.3f before limit checks",
+                    name().c_str(), limit_frame.c_str(), z_before_limits,
+                    z_override_in_limit_frame.value());
+        z_before_limits = z_override_in_limit_frame.value();
+      }
+      target_z = normalizeAxisInput("z", z_before_limits, z_min, z_max,
+                                    upper_limit_factor, lower_limit_fraction);
       target_frame = limit_frame;
       RCLCPP_INFO(logger(),
                   "%s transformed target from %s (%.3f, %.3f, %.3f) to %s "
-                  "(%.3f, %.3f, %.3f) before limit checks",
+                  "(%.3f, %.3f, %.3f) before z override and limit checks",
                   name().c_str(), requested_frame.c_str(), raw_x, raw_y, raw_z,
                   limit_frame.c_str(), target_in_limit_frame.pose.position.x,
                   target_in_limit_frame.pose.position.y,
@@ -281,6 +299,35 @@ private:
     {
       throw BT::RuntimeError(name(), ": cannot transform gripper target from ",
                              source_frame, " to ", target_frame, ": ", exc.what());
+    }
+  }
+
+  std::optional<double> getOptionalDoubleInput(const std::string& key)
+  {
+    auto value_text = getInput<std::string>(key);
+    if(!value_text)
+    {
+      throw BT::RuntimeError(name(), ": invalid optional input [", key, "]: ",
+                             value_text.error());
+    }
+    if(value_text.value().empty())
+    {
+      return std::nullopt;
+    }
+
+    try
+    {
+      const double value = BT::convertFromString<double>(value_text.value());
+      if(!std::isfinite(value))
+      {
+        throw BT::RuntimeError("value must be finite");
+      }
+      return value;
+    }
+    catch(const std::exception& exc)
+    {
+      throw BT::RuntimeError(name(), ": invalid optional input [", key, "]=",
+                             value_text.value(), ": ", exc.what());
     }
   }
 
