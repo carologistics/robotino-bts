@@ -25,6 +25,12 @@
       <input_port name="x">Target x in frame.</input_port>
       <input_port name="y">Target y in frame.</input_port>
       <input_port name="z">Target z in frame.</input_port>
+      <input_port name="x_min" default="0.0">Minimum accepted x target in meters.</input_port>
+      <input_port name="x_max" default="0.245">Maximum accepted x target in meters.</input_port>
+      <input_port name="z_min" default="0.0">Minimum accepted z target in meters.</input_port>
+      <input_port name="z_max" default="0.145">Maximum accepted z target in meters.</input_port>
+      <input_port name="upper_limit_factor" default="1.5">Clamp x/z values up to this factor of the axis range above max.</input_port>
+      <input_port name="lower_limit_fraction" default="0.2">Clamp x/z values up to this fraction of the axis range below min.</input_port>
       <input_port name="relative" default="false">Whether the requested move is relative.</input_port>
       <input_port name="use_gripper" default="false">Whether to command the gripper state together with the move.</input_port>
       <input_port name="gripper_state" default="false">Requested gripper state.</input_port>

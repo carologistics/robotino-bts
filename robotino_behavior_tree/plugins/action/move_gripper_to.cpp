@@ -1,3 +1,4 @@
+#include <cmath>
 #include <string>
 
 #include "behaviortree_ros2/bt_action_node.hpp"
@@ -41,6 +42,14 @@ public:
         BT::InputPort<double>("x", "Target x in frame"),
         BT::InputPort<double>("y", "Target y in frame"),
         BT::InputPort<double>("z", "Target z in frame"),
+        BT::InputPort<double>("x_min", 0.0, "Minimum accepted x target in meters"),
+        BT::InputPort<double>("x_max", 0.245, "Maximum accepted x target in meters"),
+        BT::InputPort<double>("z_min", 0.0, "Minimum accepted z target in meters"),
+        BT::InputPort<double>("z_max", 0.145, "Maximum accepted z target in meters"),
+        BT::InputPort<double>("upper_limit_factor", 1.5,
+                              "Clamp values up to this factor of the axis range above max"),
+        BT::InputPort<double>("lower_limit_fraction", 0.2,
+                              "Clamp values up to this fraction of the axis range below min"),
         BT::InputPort<bool>("relative", false, "Whether the move is relative"),
         BT::InputPort<bool>("use_gripper", false, "Whether to command the gripper state"),
         BT::InputPort<bool>("gripper_state", false, "Requested gripper state"),
@@ -52,9 +61,19 @@ public:
   bool setGoal(Goal& goal) override
   {
     goal.relative = getInput<bool>("relative").value_or(false);
-    goal.x = static_cast<float>(getRequiredInput<double>("x"));
+    const double upper_limit_factor = getInput<double>("upper_limit_factor").value_or(1.5);
+    const double lower_limit_fraction = getInput<double>("lower_limit_fraction").value_or(0.2);
+    const double x = normalizeAxisInput("x", getRequiredInput<double>("x"),
+                                        getInput<double>("x_min").value_or(0.0),
+                                        getInput<double>("x_max").value_or(0.245),
+                                        upper_limit_factor, lower_limit_fraction);
+    const double z = normalizeAxisInput("z", getRequiredInput<double>("z"),
+                                        getInput<double>("z_min").value_or(0.0),
+                                        getInput<double>("z_max").value_or(0.145),
+                                        upper_limit_factor, lower_limit_fraction);
+    goal.x = static_cast<float>(x);
     goal.y = static_cast<float>(getRequiredInput<double>("y"));
-    goal.z = static_cast<float>(getRequiredInput<double>("z"));
+    goal.z = static_cast<float>(z);
     auto node = Base::node_.lock();
     std::string namespace_name = node->get_namespace();
     namespace_name.erase(0, 1);
@@ -113,6 +132,75 @@ public:
   }
 
 private:
+  double normalizeAxisInput(const std::string& axis, double value, double min_value,
+                            double max_value, double upper_limit_factor,
+                            double lower_limit_fraction)
+  {
+    if(!std::isfinite(value))
+    {
+      const auto message = name() + ": input [" + axis + "] must be finite";
+      RCLCPP_ERROR(logger(), "%s", message.c_str());
+      throw BT::RuntimeError(message);
+    }
+    if(!std::isfinite(min_value) || !std::isfinite(max_value) || min_value >= max_value)
+    {
+      const auto message = name() + ": invalid limits for [" + axis + "]: min=" +
+                           std::to_string(min_value) + " max=" + std::to_string(max_value);
+      RCLCPP_ERROR(logger(), "%s", message.c_str());
+      throw BT::RuntimeError(message);
+    }
+    if(!std::isfinite(upper_limit_factor) || upper_limit_factor < 1.0)
+    {
+      const auto message = name() + ": upper_limit_factor must be >= 1.0";
+      RCLCPP_ERROR(logger(), "%s", message.c_str());
+      throw BT::RuntimeError(message);
+    }
+    if(!std::isfinite(lower_limit_fraction) || lower_limit_fraction < 0.0)
+    {
+      const auto message = name() + ": lower_limit_fraction must be >= 0.0";
+      RCLCPP_ERROR(logger(), "%s", message.c_str());
+      throw BT::RuntimeError(message);
+    }
+
+    const double range = max_value - min_value;
+    const double upper_clamp_limit = max_value + (upper_limit_factor - 1.0) * range;
+    const double lower_clamp_limit = min_value - lower_limit_fraction * range;
+
+    if(value > max_value)
+    {
+      if(value <= upper_clamp_limit)
+      {
+        RCLCPP_WARN(logger(),
+                    "%s clamping %s from %.3f to max %.3f; allowed upper clamp limit is %.3f",
+                    name().c_str(), axis.c_str(), value, max_value, upper_clamp_limit);
+        return max_value;
+      }
+      const auto message = name() + ": input [" + axis + "]=" + std::to_string(value) +
+                           " exceeds max " + std::to_string(max_value) +
+                           " and allowed clamp limit " + std::to_string(upper_clamp_limit);
+      RCLCPP_ERROR(logger(), "%s", message.c_str());
+      throw BT::RuntimeError(message);
+    }
+
+    if(value < min_value)
+    {
+      if(value >= lower_clamp_limit)
+      {
+        RCLCPP_WARN(logger(),
+                    "%s clamping %s from %.3f to min %.3f; allowed lower clamp limit is %.3f",
+                    name().c_str(), axis.c_str(), value, min_value, lower_clamp_limit);
+        return min_value;
+      }
+      const auto message = name() + ": input [" + axis + "]=" + std::to_string(value) +
+                           " is below min " + std::to_string(min_value) +
+                           " and allowed clamp limit " + std::to_string(lower_clamp_limit);
+      RCLCPP_ERROR(logger(), "%s", message.c_str());
+      throw BT::RuntimeError(message);
+    }
+
+    return value;
+  }
+
   template <typename T>
   T getRequiredInput(const std::string& key)
   {
