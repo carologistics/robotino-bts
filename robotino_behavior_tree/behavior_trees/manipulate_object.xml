@@ -88,6 +88,14 @@
           </Switch2>
           <AlwaysFailure />
         </Switch2>
+
+        <RetryUntilSuccessful num_attempts="2">
+          <MotorMove action_name="motor_move_action"
+                     frame_id="base_link"
+                     x="-0.5"
+                     y="0.0"
+                     yaw="0.0" />
+        </RetryUntilSuccessful>
       </Sequence>
     </RetryUntilSuccessful>
   </BehaviorTree>
