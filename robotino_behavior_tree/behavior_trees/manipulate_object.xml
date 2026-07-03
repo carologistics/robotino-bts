@@ -14,41 +14,17 @@
                       frame_id="{machine_input_tf}"
                       x="0.0"
                       y="0.0"
-                      yaw="0.0"
-                      qx=""
-                      qy=""
-                      qz=""
-                      qw=""
-                      behavior_tree=""
-                      current_pose=""
-                      navigation_time=""
-                      estimated_time_remaining=""
-                      number_of_recoveries=""
-                      distance_remaining=""
-                      error_code=""
-                      error_msg=""/>
+                      yaw="0.0"/>
         </RetryUntilSuccessful>
         <MotorMove action_name="motor_move_action"
-                   server_name=""
                    frame_id="base_link"
                    x="0.3"
                    y="0.0"
                    z="0.0"
-                   yaw="0.0"
-                   qx=""
-                   qy=""
-                   qz=""
-                   qw=""
-                   success=""
-                   distance_to_target=""/>
+                   yaw="0.0"/>
         <MoveToShelf action_name="move_to_shelf_action"
-                     server_name=""
                      timeout="10.0"
-                     speed="0.1"
-                     success=""
-                     message=""
-                     front_range=""
-                     elapsed_time=""/>
+                     speed="0.1"/>
         <Switch2 case_1="pick"
                  case_2="put"
                  variable="{action}">
@@ -60,81 +36,13 @@
         </Switch2>
         <RetryUntilSuccessful num_attempts="2">
           <MotorMove action_name="motor_move_action"
-                     server_name=""
                      frame_id="base_link"
                      x="-0.5"
                      y="0.0"
                      z="0.0"
-                     yaw="0.0"
-                     qx=""
-                     qy=""
-                     qz=""
-                     qw=""
-                     success=""
-                     distance_to_target=""/>
+                     yaw="0.0"/>
         </RetryUntilSuccessful>
       </Sequence>
     </RetryUntilSuccessful>
   </BehaviorTree>
-
-  <!-- Description of Node Models (used by Groot) -->
-  <TreeNodesModel>
-    <Action ID="MotorMove">
-      <input_port name="action_name"
-                  default="motor_move_action">Action server name, usually under /{namespace}/motor_move_action.</input_port>
-      <input_port name="server_name">Legacy alias for action_name.</input_port>
-      <input_port name="frame_id">Frame of the requested target pose.</input_port>
-      <input_port name="x">Target x.</input_port>
-      <input_port name="y">Target y.</input_port>
-      <input_port name="z"
-                  default="0.0">Target z.</input_port>
-      <input_port name="yaw">Final target yaw in radians. Ignored when a quaternion override is provided.</input_port>
-      <input_port name="qx">Optional quaternion x override.</input_port>
-      <input_port name="qy">Optional quaternion y override.</input_port>
-      <input_port name="qz">Optional quaternion z override.</input_port>
-      <input_port name="qw">Optional quaternion w override.</input_port>
-      <output_port name="success">Action-level success flag from motor_move_msgs/Result.</output_port>
-      <output_port name="distance_to_target">Latest feedback distance to target.</output_port>
-    </Action>
-    <SubTree ID="MoveGripperToReferenced">
-      <input_port name="frame">Target frame for the Cartesian goal.</input_port>
-      <input_port name="x">Target x in frame.</input_port>
-      <input_port name="y">Target y in frame.</input_port>
-      <input_port name="z">Target z in frame.</input_port>
-    </SubTree>
-    <Action ID="MoveToShelf">
-      <input_port name="action_name"
-                  default="move_to_shelf_action">Action server name, usually under /{namespace}/move_to_shelf_action.</input_port>
-      <input_port name="server_name">Legacy alias for action_name.</input_port>
-      <input_port name="timeout"
-                  default="10.0">Maximum move-to-shelf time in seconds.</input_port>
-      <input_port name="speed"
-                  default="0.1">Approach speed.</input_port>
-      <output_port name="success">Action-level success flag from motor_move_msgs/Result.</output_port>
-      <output_port name="message">Result message from the action server.</output_port>
-      <output_port name="front_range">Feedback front range.</output_port>
-      <output_port name="elapsed_time">Feedback elapsed time in seconds.</output_port>
-    </Action>
-    <Action ID="NavigateTo">
-      <input_port name="action_name"
-                  default="navigate_to_pose">Action server name for nav2_msgs/action/NavigateToPose.</input_port>
-      <input_port name="frame_id">Frame in which x, y, and yaw are expressed.</input_port>
-      <input_port name="x">Target x position.</input_port>
-      <input_port name="y">Target y position.</input_port>
-      <input_port name="yaw">Target yaw in radians. Used when quaternion override is not provided.</input_port>
-      <input_port name="qx">Optional quaternion x override. Must be provided together with qy, qz, and qw.</input_port>
-      <input_port name="qy">Optional quaternion y override. Must be provided together with qx, qz, and qw.</input_port>
-      <input_port name="qz">Optional quaternion z override. Must be provided together with qx, qy, and qw.</input_port>
-      <input_port name="qw">Optional quaternion w override. Must be provided together with qx, qy, and qz.</input_port>
-      <input_port name="behavior_tree">Optional which behavior_tree to load.</input_port>
-      <output_port name="current_pose">Feedback current pose.</output_port>
-      <output_port name="navigation_time">Feedback time spent navigating.</output_port>
-      <output_port name="estimated_time_remaining">Feedback estimated time remaining to target.</output_port>
-      <output_port name="number_of_recoveries">Feedback number of recovery maneuvers.</output_port>
-      <output_port name="distance_remaining">Feedback remaining distance to target.</output_port>
-      <output_port name="error_code">Result error code from NavigateToPose.</output_port>
-      <output_port name="error_msg">Result error message from nav2.</output_port>
-    </Action>
-  </TreeNodesModel>
-
 </root>

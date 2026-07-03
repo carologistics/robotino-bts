@@ -3,13 +3,6 @@
   <BehaviorTree ID="MoveGripperToReferenced">
     <RetryUntilSuccessful num_attempts="3">
       <Sequence>
-        <Fallback>
-          <IsGripperReferenced topic_name="gigatino/feedback"
-                               referenced="{gripper_referenced}" />
-          <CalibrateGripper action_name="gigatino/calibrate"
-                            status_code="{calibrate_status_code}"
-                            message="{calibrate_message}" />
-        </Fallback>
         <MoveGripperTo action_name="gigatino/move"
                        frame="{frame}"
                        x="{x}"
