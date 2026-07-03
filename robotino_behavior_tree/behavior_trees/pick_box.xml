@@ -18,10 +18,10 @@
       -->
       <Sleep msec="350" />
       <SubTree ID="MoveGripperToReferenced"
-               frame="tracked_object"
-               x="0.0"
-               y="-0.01"
-               z="-0.025" />
+               frame="end_effector_home"
+               x="0.05"
+               y="0.0"
+               z="0.035" />
       <SetGripper action_name="gigatino/gripper"
                   open="false"
                   status_code="{gripper_status_code}"
