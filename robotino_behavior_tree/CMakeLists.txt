@@ -37,6 +37,7 @@ set(action_node_list
   calibrate_gripper
   motor_move
   move_gripper_to
+  move_to_shelf
   navigate_to
   set_gripper
 )
