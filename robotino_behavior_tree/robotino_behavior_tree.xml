@@ -84,6 +84,29 @@
       <output_port name="error_msg">Result error message from nav2.</output_port>
     </Action>
 
+    <Action ID="AcquireObjectTracking">
+      <input_port name="action_name" default="acquire_object_tracking">Action server name for robotino_vision_msgs/action/AcquireObjectTracking.</input_port>
+      <input_port name="object_prompt">Text prompt describing the object to acquire.</input_port>
+      <input_port name="reference_frame">Reference frame used for selecting the closest object.</input_port>
+      <input_port name="distance_threshold">Maximum accepted object distance in meters.</input_port>
+      <input_port name="approach_distance">Frozen approach TF standoff distance in meters.</input_port>
+      <input_port name="segmentation_confidence">YOLO segmentation confidence threshold.</input_port>
+      <input_port name="target_color" default="">Optional target color filter: green, blue, red, or yellow.</input_port>
+      <input_port name="object_tf_name">Frozen object TF frame name.</input_port>
+      <input_port name="approach_tf_name">Frozen approach TF frame name.</input_port>
+      <input_port name="timeout_sec">Maximum acquisition time in seconds.</input_port>
+      <input_port name="min_stable_frames">Required consecutive stable detections.</input_port>
+      <input_port name="max_position_jump">Maximum object position jump between stable frames in meters.</input_port>
+
+      <output_port name="success">Whether object acquisition succeeded.</output_port>
+      <output_port name="error">Error returned by object acquisition.</output_port>
+      <output_port name="acquired_object_tf_name">Resolved frozen object TF frame.</output_port>
+      <output_port name="acquired_approach_tf_name">Resolved frozen approach TF frame.</output_port>
+      <output_port name="detection_valid">Feedback: current detection is valid.</output_port>
+      <output_port name="stable_frames">Feedback: consecutive stable detection count.</output_port>
+      <output_port name="object_distance">Feedback: selected object distance in meters.</output_port>
+    </Action>
+
     <Action ID="ToggleObjectTracking">
       <input_port name="enable" default="true">Enable or disable object tracking.</input_port>
       <input_port name="object_prompt" default="grey eurobox EG 3212">Text prompt describing the object to track.</input_port>

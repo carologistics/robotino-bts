@@ -33,6 +33,7 @@ set(dependencies
 )
 
 set(action_node_list
+  acquire_object_tracking
   calibrate_gripper
   motor_move
   move_gripper_to
