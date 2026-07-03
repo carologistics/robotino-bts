@@ -33,9 +33,9 @@
                    y="0.0"
                    z="0.0"
                    yaw="0.0"/>
-        <MoveToShelf action_name="move_to_shelf_action"
-                     timeout="10.0"
-                     speed="0.1"/>
+        <GrayBoxAlign action_name="gray_box_align_action"
+                      timeout="20.0"
+                      speed="0.1"/>
         <Switch2 case_1="pick"
                  case_2="put"
                  variable="{action}">

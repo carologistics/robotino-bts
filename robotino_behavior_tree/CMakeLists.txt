@@ -35,6 +35,7 @@ set(dependencies
 set(action_node_list
   acquire_object_tracking
   calibrate_gripper
+  gray_box_align
   motor_move
   move_gripper_to
   move_to_shelf
@@ -85,6 +86,11 @@ ament_target_dependencies(robotino_tree_server ${dependencies})
 
 install(TARGETS
   robotino_tree_server
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(PROGRAMS
+  ../gray_box_plane_controller.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
