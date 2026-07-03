@@ -4,6 +4,11 @@
     <RetryUntilSuccessful num_attempts="5">
       <Sequence>
         <ScriptCondition code="action == &apos;pick&apos; || action == &apos;put&apos;"/>
+         <Switch2 variable="{action}" case_1="pick" case_2="put">
+           <Script code="gripper_home_z := 0.035" />
+           <Script code="gripper_home_z := 0.014" />
+           <AlwaysFailure />
+         </Switch2>
         <SubTree ID="MoveGripperToReferenced"
                  frame="end_effector_home"
                  x="0.0"
