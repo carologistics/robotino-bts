@@ -1,6 +1,14 @@
 #include <cmath>
 #include <chrono>
+#include <memory>
 #include <string>
+
+#include "geometry_msgs/msg/pose_stamped.hpp"
+#include "tf2/exceptions.h"
+#include "tf2/time.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
+#include "tf2_ros/buffer.h"
+#include "tf2_ros/transform_listener.h"
 
 #include "behaviortree_ros2/bt_action_node.hpp"
 #include "behaviortree_ros2/plugins.hpp"
@@ -9,6 +17,11 @@
 
 namespace robotino_behavior_tree
 {
+namespace
+{
+constexpr double kTransformTimeoutSeconds = 0.1;
+}
+
 
 inline BT::RosNodeParams withDefaultActionName(const BT::RosNodeParams& params,
                                                const std::string& action_name)
@@ -36,6 +49,12 @@ public:
   MoveGripperTo(const std::string& name, const NodeConfig& config, const RosNodeParams& params)
     : Base(name, config, withDefaultActionName(params, "gigatino/move"))
   {
+    auto node = Base::node_.lock();
+    if(node)
+    {
+      tf_buffer_ = std::make_unique<tf2_ros::Buffer>(node->get_clock());
+      tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+    }
   }
 
   static BT::PortsList providedPorts()
@@ -45,10 +64,10 @@ public:
         BT::InputPort<double>("x", "Target x in frame"),
         BT::InputPort<double>("y", "Target y in frame"),
         BT::InputPort<double>("z", "Target z in frame"),
-        BT::InputPort<double>("x_min", 0.0, "Minimum accepted x target in meters"),
-        BT::InputPort<double>("x_max", 0.245, "Maximum accepted x target in meters"),
-        BT::InputPort<double>("z_min", 0.0, "Minimum accepted z target in meters"),
-        BT::InputPort<double>("z_max", 0.145, "Maximum accepted z target in meters"),
+        BT::InputPort<double>("x_min", 0.0, "Minimum accepted x target in end_effector_home, meters"),
+        BT::InputPort<double>("x_max", 0.19, "Maximum accepted x target in end_effector_home, meters"),
+        BT::InputPort<double>("z_min", 0.0, "Minimum accepted z target in end_effector_home, meters"),
+        BT::InputPort<double>("z_max", 0.14, "Maximum accepted z target in end_effector_home, meters"),
         BT::InputPort<double>("upper_limit_factor", 1.5,
                               "Clamp values up to this factor of the axis range above max"),
         BT::InputPort<double>("lower_limit_fraction", 0.2,
@@ -97,23 +116,58 @@ public:
   bool setGoal(Goal& goal) override
   {
     goal.relative = getInput<bool>("relative").value_or(false);
+    const double raw_x = getRequiredInput<double>("x");
+    const double raw_y = getRequiredInput<double>("y");
+    const double raw_z = getRequiredInput<double>("z");
+    const std::string requested_frame = namespacedFrame(getRequiredInput<std::string>("frame"));
+    const std::string limit_frame = namespacedFrame("end_effector_home");
     const double upper_limit_factor = getInput<double>("upper_limit_factor").value_or(1.5);
     const double lower_limit_fraction = getInput<double>("lower_limit_fraction").value_or(0.2);
-    const double x = normalizeAxisInput("x", getRequiredInput<double>("x"),
-                                        getInput<double>("x_min").value_or(0.0),
-                                        getInput<double>("x_max").value_or(0.245),
-                                        upper_limit_factor, lower_limit_fraction);
-    const double z = normalizeAxisInput("z", getRequiredInput<double>("z"),
-                                        getInput<double>("z_min").value_or(0.0),
-                                        getInput<double>("z_max").value_or(0.145),
-                                        upper_limit_factor, lower_limit_fraction);
-    goal.x = static_cast<float>(x);
-    goal.y = static_cast<float>(getRequiredInput<double>("y"));
-    goal.z = static_cast<float>(z);
-    auto node = Base::node_.lock();
-    std::string namespace_name = node->get_namespace();
-    namespace_name.erase(0, 1);
-    goal.target_frame = namespace_name + "/" + getRequiredInput<std::string>("frame");
+    const double x_min = getInput<double>("x_min").value_or(0.0);
+    const double x_max = getInput<double>("x_max").value_or(0.19);
+    const double z_min = getInput<double>("z_min").value_or(0.0);
+    const double z_max = getInput<double>("z_max").value_or(0.14);
+
+    double target_x = raw_x;
+    double target_y = raw_y;
+    double target_z = raw_z;
+    std::string target_frame = requested_frame;
+
+    if(goal.relative)
+    {
+      target_x = normalizeAxisInput("x", raw_x, x_min, x_max, upper_limit_factor,
+                                    lower_limit_fraction);
+      target_z = normalizeAxisInput("z", raw_z, z_min, z_max, upper_limit_factor,
+                                    lower_limit_fraction);
+      RCLCPP_WARN(logger(),
+                  "%s received relative gripper move; x/z limits are applied in the input frame %s",
+                  name().c_str(), requested_frame.c_str());
+    }
+    else
+    {
+      const auto target_in_limit_frame = transformTargetToFrame(
+          requested_frame, raw_x, raw_y, raw_z, limit_frame);
+      target_x = normalizeAxisInput("x", target_in_limit_frame.pose.position.x,
+                                    x_min, x_max, upper_limit_factor,
+                                    lower_limit_fraction);
+      target_y = target_in_limit_frame.pose.position.y;
+      target_z = normalizeAxisInput("z", target_in_limit_frame.pose.position.z,
+                                    z_min, z_max, upper_limit_factor,
+                                    lower_limit_fraction);
+      target_frame = limit_frame;
+      RCLCPP_INFO(logger(),
+                  "%s transformed target from %s (%.3f, %.3f, %.3f) to %s "
+                  "(%.3f, %.3f, %.3f) before limit checks",
+                  name().c_str(), requested_frame.c_str(), raw_x, raw_y, raw_z,
+                  limit_frame.c_str(), target_in_limit_frame.pose.position.x,
+                  target_in_limit_frame.pose.position.y,
+                  target_in_limit_frame.pose.position.z);
+    }
+
+    goal.x = static_cast<float>(target_x);
+    goal.y = static_cast<float>(target_y);
+    goal.z = static_cast<float>(target_z);
+    goal.target_frame = target_frame;
     goal.use_gripper = getInput<bool>("use_gripper").value_or(false);
     goal.gripper_state = getInput<bool>("gripper_state").value_or(false);
 
@@ -168,6 +222,68 @@ public:
   }
 
 private:
+  std::string namespacedFrame(std::string frame) const
+  {
+    while(!frame.empty() && frame.front() == '/')
+    {
+      frame.erase(frame.begin());
+    }
+    if(frame.empty())
+    {
+      throw BT::RuntimeError(name(), ": frame input must not be empty");
+    }
+
+    auto node = Base::node_.lock();
+    if(!node)
+    {
+      throw BT::RuntimeError(name(), ": ROS node is not available");
+    }
+    std::string namespace_name = node->get_namespace();
+    while(!namespace_name.empty() && namespace_name.front() == '/')
+    {
+      namespace_name.erase(namespace_name.begin());
+    }
+    if(namespace_name.empty() || frame == namespace_name || frame.rfind(namespace_name + "/", 0) == 0)
+    {
+      return frame;
+    }
+    return namespace_name + "/" + frame;
+  }
+
+  geometry_msgs::msg::PoseStamped transformTargetToFrame(
+      const std::string& source_frame, double x, double y, double z,
+      const std::string& target_frame)
+  {
+    if(!tf_buffer_)
+    {
+      throw BT::RuntimeError(name(), ": TF buffer is not available");
+    }
+
+    geometry_msgs::msg::PoseStamped source;
+    source.header.frame_id = source_frame;
+    source.header.stamp.sec = 0;
+    source.header.stamp.nanosec = 0;
+    source.pose.position.x = x;
+    source.pose.position.y = y;
+    source.pose.position.z = z;
+    source.pose.orientation.w = 1.0;
+
+    try
+    {
+      const auto transform = tf_buffer_->lookupTransform(
+          target_frame, source_frame, tf2::TimePointZero,
+          tf2::durationFromSec(kTransformTimeoutSeconds));
+      geometry_msgs::msg::PoseStamped transformed;
+      tf2::doTransform(source, transformed, transform);
+      return transformed;
+    }
+    catch(const tf2::TransformException& exc)
+    {
+      throw BT::RuntimeError(name(), ": cannot transform gripper target from ",
+                             source_frame, " to ", target_frame, ": ", exc.what());
+    }
+  }
+
   double normalizeAxisInput(const std::string& axis, double value, double min_value,
                             double max_value, double upper_limit_factor,
                             double lower_limit_fraction)
@@ -249,6 +365,8 @@ private:
     return value.value();
   }
 
+  std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
+  std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
   rclcpp::Time action_started_time_;
   int timeout_ms_ = 3000;
 };

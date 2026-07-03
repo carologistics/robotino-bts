@@ -15,6 +15,7 @@ find_package(nav2_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(robotino_vision_msgs REQUIRED)
 find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 
 set(gigatino_msgs_typesupport gigatino_msgs::gigatino_msgs__rosidl_typesupport_cpp)
@@ -29,6 +30,7 @@ set(dependencies
   rclcpp
   robotino_vision_msgs
   tf2
+  tf2_ros
   tf2_geometry_msgs
 )
 
