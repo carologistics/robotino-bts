@@ -111,6 +111,7 @@ class GrayBoxPlaneController(Node):
         self.declare_parameter("invert_lateral", True)
         self.declare_parameter("action_enables_motion", True)
         self.declare_parameter("centered_stable_frames", 2)
+        self.declare_parameter("run_only_during_action", True)
 
         self.image_topic = str(self.get_parameter("image_topic").value)
         self.pointcloud_topic = str(self.get_parameter("pointcloud_topic").value)
@@ -174,6 +175,7 @@ class GrayBoxPlaneController(Node):
         self.invert_lateral = bool(self.get_parameter("invert_lateral").value)
         self.action_enables_motion = bool(self.get_parameter("action_enables_motion").value)
         self.centered_stable_frames = max(1, int(self.get_parameter("centered_stable_frames").value))
+        self.run_only_during_action = bool(self.get_parameter("run_only_during_action").value)
 
         self.bridge = CvBridge()
         self.latest_cloud: Optional[PointCloud2] = None
@@ -225,6 +227,9 @@ class GrayBoxPlaneController(Node):
 
     def motion_enabled(self) -> bool:
         return self.enable_motion or (self.action_enables_motion and self.align_goal_active())
+
+    def controller_active(self) -> bool:
+        return not self.run_only_during_action or self.align_goal_active()
 
     def align_goal_active(self) -> bool:
         return self.align_goal_handle is not None and self.align_goal_handle.is_active
@@ -336,6 +341,8 @@ class GrayBoxPlaneController(Node):
         return -self.max_future_stamp_sec <= age <= self.max_cloud_age_sec
 
     def on_cloud(self, msg: PointCloud2) -> None:
+        if not self.controller_active():
+            return
         if self.too_old(msg, self.max_cloud_age_sec, "pointcloud"):
             return
         self.latest_cloud = msg
@@ -933,6 +940,8 @@ class GrayBoxPlaneController(Node):
         return cmd, stage, yaw, lateral, distance
 
     def control_from_latest_cloud(self) -> None:
+        if not self.controller_active():
+            return
         if self.use_motor_move and (self.motor_active or self.await_fresh_image_after_motion):
             return
         cluster, status = self.object_cluster_from_previous()
@@ -1010,6 +1019,8 @@ class GrayBoxPlaneController(Node):
         return debug
 
     def on_image(self, msg: Image) -> None:
+        if not self.controller_active():
+            return
         if self.too_old(msg, self.max_image_age_sec, "image"):
             if self.motion_enabled():
                 self.stop()

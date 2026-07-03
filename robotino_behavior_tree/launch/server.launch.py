@@ -73,6 +73,7 @@ def generate_launch_description():
                         "show_gui": gray_box_show_gui,
                         "enable_motion": gray_box_enable_motion,
                         "use_motor_move": gray_box_use_motor_move,
+                        "run_only_during_action": True,
                     }
                 ],
             ),
