@@ -44,6 +44,8 @@ public:
                                    "Reference frame used for object tracking"),
       BT::InputPort<double>("distance_threshold", 10.0,
                               "Maximum accepted object distance in meters"),
+      BT::InputPort<double>("approach_distance", 0.0,
+                              "Approach TF standoff distance in meters; 0 uses node default"),
       BT::InputPort<double>("segmentation_confidence", 0.2,
                               "YOLO segmentation confidence threshold"),
       BT::InputPort<std::string>("target_color", "",
@@ -63,6 +65,7 @@ public:
     request->reference_frame =
       getInput<std::string>("reference_frame").value_or("base_link");
     request->distance_threshold = getInput<double>("distance_threshold").value_or(10.0);
+    request->approach_distance = getInput<double>("approach_distance").value_or(0.0);
     request->segmentation_confidence =
       getInput<double>("segmentation_confidence").value_or(0.2);
     request->target_color = getInput<std::string>("target_color").value_or("");
@@ -71,12 +74,13 @@ public:
 
     RCLCPP_INFO(logger(),
                 "%s sending request: enable=%s prompt='%s' reference_frame=%s "
-                "distance_threshold=%.3f segmentation_confidence=%.3f "
-                "target_color='%s' object_tf_name=%s",
+                "distance_threshold=%.3f approach_distance=%.3f "
+                "segmentation_confidence=%.3f target_color='%s' object_tf_name=%s",
                 name().c_str(), request->enable ? "true" : "false",
                 request->object_prompt.c_str(), request->reference_frame.c_str(),
-                request->distance_threshold, request->segmentation_confidence,
-                request->target_color.c_str(), request->object_tf_name.c_str());
+                request->distance_threshold, request->approach_distance,
+                request->segmentation_confidence, request->target_color.c_str(),
+                request->object_tf_name.c_str());
     return true;
   }
 

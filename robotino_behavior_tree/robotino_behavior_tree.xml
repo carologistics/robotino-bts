@@ -82,6 +82,7 @@
       <input_port name="object_prompt" default="grey eurobox EG 3212">Text prompt describing the object to track.</input_port>
       <input_port name="reference_frame" default="base_link">Reference frame used for object tracking.</input_port>
       <input_port name="distance_threshold" default="10.0">Maximum accepted object distance.</input_port>
+      <input_port name="approach_distance" default="0.0">Approach TF standoff distance in meters; 0 uses object tracking default.</input_port>
       <input_port name="segmentation_confidence" default="0.2">YOLO segmentation confidence threshold.</input_port>
       <input_port name="target_color" default="">Optional target color filter: green, blue, red, or yellow.</input_port>
       <input_port name="object_tf_name" default="target_object">TF frame name published for the tracked object.</input_port>
