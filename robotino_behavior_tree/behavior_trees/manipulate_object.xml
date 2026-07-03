@@ -5,8 +5,14 @@
       <Sequence>
         <ScriptCondition code="action == &apos;pick&apos; || action == &apos;put&apos;"/>
          <Switch2 variable="{action}" case_1="pick" case_2="put">
+	   <Sequence>
+             <Script code="gripper_home_z := 0.014" />
+             <SetGripper action_name="gigatino/gripper"
+                  open="true"
+                  status_code="{gripper_status_code}"
+                  message="{gripper_message}" />
+	   </Sequence>
            <Script code="gripper_home_z := 0.035" />
-           <Script code="gripper_home_z := 0.014" />
            <AlwaysFailure />
          </Switch2>
         <SubTree ID="MoveGripperToReferenced"
