@@ -94,6 +94,7 @@ class GrayBoxPlaneController(Node):
         self.declare_parameter("distance_deadband_m", 0.025)
         self.declare_parameter("max_angular_speed", 0.035)
         self.declare_parameter("max_lateral_speed", 0.15)
+        self.declare_parameter("lateral_acceleration", 0.5)
         self.declare_parameter("max_forward_speed", 0.10)
         self.declare_parameter("side_band_fraction", 0.20)
         self.declare_parameter("min_side_points", 8)
@@ -162,6 +163,7 @@ class GrayBoxPlaneController(Node):
         self.distance_deadband_m = float(self.get_parameter("distance_deadband_m").value)
         self.max_angular_speed = abs(float(self.get_parameter("max_angular_speed").value))
         self.max_lateral_speed = abs(float(self.get_parameter("max_lateral_speed").value))
+        self.lateral_acceleration = abs(float(self.get_parameter("lateral_acceleration").value))
         self.max_forward_speed = abs(float(self.get_parameter("max_forward_speed").value))
         self.side_band_fraction = float(self.get_parameter("side_band_fraction").value)
         self.min_side_points = int(self.get_parameter("min_side_points").value)
@@ -197,6 +199,8 @@ class GrayBoxPlaneController(Node):
         self.filtered_yaw: Optional[float] = None
         self.filtered_lateral: Optional[float] = None
         self.filtered_distance: Optional[float] = None
+        self.lateral_speed = 0.0
+        self.last_control_time_ns: Optional[int] = None
         self.last_motor_goal_time_ns: Optional[int] = None
         self.motor_goal_pending = False
         self.motor_active = False
@@ -277,6 +281,8 @@ class GrayBoxPlaneController(Node):
         self.align_started_ns = self.get_clock().now().nanoseconds
         self.align_centered_count = 0
         self.cluster_history.clear()
+        self.lateral_speed = 0.0
+        self.last_control_time_ns = None
         self.filtered_yaw = None
         self.filtered_lateral = None
         self.filtered_distance = None
@@ -815,7 +821,10 @@ class GrayBoxPlaneController(Node):
         lateral_active = abs(lateral) > self.lateral_deadband_m
         yaw_active = abs(yaw) > self.yaw_depth_deadband_m
         if lateral_active:
-            cmd.linear.y = float(np.clip(lateral if self.invert_lateral else -lateral, -self.max_lateral_speed, self.max_lateral_speed))
+            requested_lateral = lateral if self.invert_lateral else -lateral
+            cmd.linear.y = self.profiled_lateral_speed(requested_lateral)
+        else:
+            self.lateral_speed = 0.0
         if yaw_active:
             # Positive angular.z turns left. If the left side of the box is closer
             # than the right side, yaw_delta is negative and this commands left.
@@ -832,6 +841,33 @@ class GrayBoxPlaneController(Node):
         self.latest_topdown_target_xy = np.array([0.0, float(cmd.linear.y)], dtype=np.float64)
         self.latest_topdown_target_yaw = float(cmd.angular.z)
         return cmd, stage, yaw, lateral, distance
+
+    def profiled_lateral_speed(self, lateral_error: float) -> float:
+        error = abs(float(lateral_error))
+        if error <= self.lateral_deadband_m:
+            self.lateral_speed = 0.0
+            return 0.0
+
+        now_ns = self.get_clock().now().nanoseconds
+        if self.last_control_time_ns is None:
+            dt = 0.05
+        else:
+            dt = max(1e-3, min(0.2, (now_ns - self.last_control_time_ns) / 1_000_000_000.0))
+        self.last_control_time_ns = now_ns
+
+        max_speed = max(1e-6, self.max_lateral_speed)
+        acceleration = max(1e-6, self.lateral_acceleration)
+        braking_distance = max_speed * max_speed / (2.0 * acceleration)
+
+        if error > braking_distance:
+            self.lateral_speed = min(max_speed, self.lateral_speed + acceleration * dt)
+        else:
+            profile_speed = math.sqrt(2.0 * acceleration * error)
+            damping_speed = abs(self.lateral_kp) * error
+            self.lateral_speed = min(profile_speed, damping_speed, max_speed)
+
+        self.lateral_speed = min(self.lateral_speed, error / dt)
+        return math.copysign(self.lateral_speed, lateral_error)
 
     def yaw_to_quaternion(self, yaw: float) -> tuple[float, float]:
         return math.sin(0.5 * yaw), math.cos(0.5 * yaw)
@@ -1321,6 +1357,8 @@ class GrayBoxPlaneController(Node):
             self.filtered_yaw = None
             self.filtered_lateral = None
             self.filtered_distance = None
+            self.lateral_speed = 0.0
+            self.last_control_time_ns = None
 
         if self.use_motor_move:
             if rclpy.ok():
