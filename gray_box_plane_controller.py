@@ -86,8 +86,6 @@ class GrayBoxPlaneController(Node):
         self.declare_parameter("ransac_threshold_m", 0.012)
         self.declare_parameter("min_inliers", 30)
         self.declare_parameter("max_plane_rms_m", 0.020)
-        self.declare_parameter("front_plane_depth_percentile", 45.0)
-        self.declare_parameter("front_plane_min_points", 80)
         self.declare_parameter("filter_alpha", 0.35)
 
         self.declare_parameter("target_distance_m", 0.22)
@@ -156,8 +154,6 @@ class GrayBoxPlaneController(Node):
         self.ransac_threshold_m = float(self.get_parameter("ransac_threshold_m").value)
         self.min_inliers = int(self.get_parameter("min_inliers").value)
         self.max_plane_rms_m = float(self.get_parameter("max_plane_rms_m").value)
-        self.front_plane_depth_percentile = float(self.get_parameter("front_plane_depth_percentile").value)
-        self.front_plane_min_points = int(self.get_parameter("front_plane_min_points").value)
         self.filter_alpha = float(self.get_parameter("filter_alpha").value)
 
         self.target_distance_m = float(self.get_parameter("target_distance_m").value)
@@ -577,21 +573,12 @@ class GrayBoxPlaneController(Node):
         if points is None:
             return None, None, status
 
-        percentile = float(np.clip(self.front_plane_depth_percentile, 5.0, 95.0))
-        z_limit = float(np.percentile(points[:, 2], percentile))
-        front_points = points[points[:, 2] <= z_limit]
-        min_points = max(self.min_inliers, self.front_plane_min_points)
-        if front_points.shape[0] < min_points:
-            front_points = points
-        if front_points.shape[0] < self.min_inliers:
-            return None, None, f"{status} front_plane too few points={front_points.shape[0]}"
-
-        plane = self.fit_plane_ransac(front_points)
+        plane = self.fit_plane_ransac(points)
         if plane is None:
-            return None, None, f"{status} front_plane failed points={front_points.shape[0]}"
+            return None, None, f"{status} plane failed"
         yaw = self.plane_yaw_error(plane)
         return plane, yaw, (
-            f"{status} front_plane_points={front_points.shape[0]} "
+            f"{status} plane_points={points.shape[0]} "
             f"plane_yaw={math.degrees(yaw):+.1f}deg rms={plane.rms_m:.4f}m"
         )
 
