@@ -13,6 +13,7 @@ def generate_launch_description():
     gray_box_show_gui = LaunchConfiguration("gray_box_show_gui")
     gray_box_enable_motion = LaunchConfiguration("gray_box_enable_motion")
     gray_box_use_motor_move = LaunchConfiguration("gray_box_use_motor_move")
+    gray_box_run_only_during_action = LaunchConfiguration("gray_box_run_only_during_action")
 
     return LaunchDescription(
         [
@@ -55,6 +56,11 @@ def generate_launch_description():
                 default_value="true",
                 description="Use motor_move_action goals instead of cmd_vel for gray box alignment.",
             ),
+            DeclareLaunchArgument(
+                "gray_box_run_only_during_action",
+                default_value="true",
+                description="Only process camera/cloud frames while gray_box_align_action is active.",
+            ),
             Node(
                 package="robotino_behavior_tree",
                 executable="robotino_tree_server",
@@ -73,7 +79,7 @@ def generate_launch_description():
                         "show_gui": gray_box_show_gui,
                         "enable_motion": gray_box_enable_motion,
                         "use_motor_move": gray_box_use_motor_move,
-                        "run_only_during_action": True,
+                        "run_only_during_action": gray_box_run_only_during_action,
                     }
                 ],
             ),

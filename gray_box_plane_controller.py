@@ -232,6 +232,10 @@ class GrayBoxPlaneController(Node):
             cv2.resizeWindow(self.window_name, 960, 540)
             cv2.namedWindow(self.topdown_window_name, cv2.WINDOW_NORMAL)
             cv2.resizeWindow(self.topdown_window_name, 640, 640)
+            topdown = self.draw_topdown_debug(None, None, None, None, "waiting")
+            cv2.imshow(self.topdown_window_name, topdown)
+            cv2.imwrite(self.topdown_output_path, topdown)
+            cv2.waitKey(1)
 
         self.get_logger().info(f"image: {self.image_topic}")
         self.get_logger().info(f"pointcloud: {self.pointcloud_topic}")
@@ -305,6 +309,8 @@ class GrayBoxPlaneController(Node):
         self.align_goal_handle.publish_feedback(feedback)
 
     def on_align_timer(self) -> None:
+        if self.show_gui:
+            cv2.waitKey(1)
         if not self.align_goal_active() or self.align_started_ns is None:
             return
         if self.align_goal_handle.is_cancel_requested:

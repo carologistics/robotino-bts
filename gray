@@ -8,7 +8,8 @@ ros2 launch robotino_behavior_tree server.launch.py \
   namespace:="${namespace}" \
   gray_box_show_gui:=true \
   gray_box_enable_motion:=false \
-  gray_box_use_motor_move:=true &
+  gray_box_use_motor_move:=true \
+  gray_box_run_only_during_action:=false &
 
 launch_pid=$!
 trap 'kill "${launch_pid}" 2>/dev/null || true' EXIT
@@ -20,7 +21,6 @@ for _ in $(seq 1 80); do
   sleep 0.25
 done
 
-ros2 param set "${node}" run_only_during_action false
 ros2 param set "${node}" action_enables_motion false
 ros2 param set "${node}" enable_motion false
 
