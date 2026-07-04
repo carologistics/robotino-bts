@@ -97,13 +97,14 @@ class GrayBoxPlaneController(Node):
         self.declare_parameter("yaw_deadband_deg", 3.0)
         self.declare_parameter("lateral_deadband_m", 0.005)
         self.declare_parameter("distance_deadband_m", 0.025)
-        self.declare_parameter("max_angular_speed", 0.30)
+        self.declare_parameter("max_angular_speed", 0.10)
         self.declare_parameter("max_lateral_speed", 0.10)
         self.declare_parameter("max_forward_speed", 0.10)
+        self.declare_parameter("cmd_republish_period_sec", 0.05)
         self.declare_parameter("side_band_fraction", 0.20)
         self.declare_parameter("min_side_points", 8)
         self.declare_parameter("cloud_tracking_enabled", False)
-        self.declare_parameter("use_motor_move", True)
+        self.declare_parameter("use_motor_move", False)
         self.declare_parameter("motor_goal_period_sec", 0.0)
         self.declare_parameter("motor_result_wait_sec", 0.0)
         self.declare_parameter("position_average_frames", 5)
@@ -172,6 +173,7 @@ class GrayBoxPlaneController(Node):
         self.max_angular_speed = abs(float(self.get_parameter("max_angular_speed").value))
         self.max_lateral_speed = abs(float(self.get_parameter("max_lateral_speed").value))
         self.max_forward_speed = abs(float(self.get_parameter("max_forward_speed").value))
+        self.cmd_republish_period_sec = max(0.01, float(self.get_parameter("cmd_republish_period_sec").value))
         self.side_band_fraction = float(self.get_parameter("side_band_fraction").value)
         self.min_side_points = int(self.get_parameter("min_side_points").value)
         self.cloud_tracking_enabled = bool(self.get_parameter("cloud_tracking_enabled").value)
@@ -224,6 +226,8 @@ class GrayBoxPlaneController(Node):
         self.last_move_target_xy: Optional[np.ndarray] = None
         self.last_move_target_yaw = 0.0
         self.last_move_end_object_xy: Optional[np.ndarray] = None
+        self.active_cmd = Twist()
+        self.active_cmd_stamp_ns: Optional[int] = None
         self.cluster_history = deque(maxlen=self.position_average_frames)
         self.align_goal_handle = None
         self.align_started_ns: Optional[int] = None
@@ -250,6 +254,7 @@ class GrayBoxPlaneController(Node):
         self.create_subscription(Image, self.image_topic, self.on_image, sensor_qos)
         self.create_subscription(PointCloud2, self.pointcloud_topic, self.on_cloud, sensor_qos)
         self.create_timer(0.1, self.on_align_timer)
+        self.create_timer(self.cmd_republish_period_sec, self.on_cmd_timer)
 
         if self.show_gui:
             cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL)
@@ -354,7 +359,27 @@ class GrayBoxPlaneController(Node):
             cv2.destroyWindow(self.window_name)
             cv2.destroyWindow(self.topdown_window_name)
 
+    def set_active_cmd(self, cmd: Twist) -> None:
+        self.active_cmd = cmd
+        self.active_cmd_stamp_ns = self.get_clock().now().nanoseconds
+
+    def active_cmd_stale(self) -> bool:
+        if self.active_cmd_stamp_ns is None:
+            return True
+        age = (self.get_clock().now().nanoseconds - self.active_cmd_stamp_ns) / 1_000_000_000.0
+        return age > self.lost_stop_after_sec
+
+    def on_cmd_timer(self) -> None:
+        if self.use_motor_move or not self.motion_enabled() or not self.controller_active():
+            return
+        if self.active_cmd_stale():
+            self.active_cmd = Twist()
+            return
+        self.cmd_pub.publish(self.active_cmd)
+
     def stop(self) -> None:
+        self.active_cmd = Twist()
+        self.active_cmd_stamp_ns = None
         if rclpy.ok():
             self.cmd_pub.publish(Twist())
 
@@ -1106,11 +1131,13 @@ class GrayBoxPlaneController(Node):
             target_x = float(cmd.linear.x)
             target_y = float(cmd.linear.y)
             target_yaw = float(cmd.angular.z)
+            self.set_active_cmd(cmd)
             self.cmd_pub.publish(cmd)
         elif rclpy.ok():
             target_x = float(cmd.linear.x)
             target_y = float(cmd.linear.y)
             target_yaw = float(cmd.angular.z)
+            self.set_active_cmd(Twist())
             self.cmd_pub.publish(Twist())
         if self.frame_count % 5 == 0:
             if target_x is None:
@@ -1474,8 +1501,10 @@ class GrayBoxPlaneController(Node):
             if rclpy.ok():
                 self.cmd_pub.publish(Twist())
         elif self.motion_enabled() and rclpy.ok():
+            self.set_active_cmd(cmd)
             self.cmd_pub.publish(cmd)
         elif rclpy.ok():
+            self.set_active_cmd(Twist())
             self.cmd_pub.publish(Twist())
 
         debug = self.draw_debug(image, detection, object_mask, plane, stage, cmd, yaw, lateral, distance, cluster, depth_mask)
