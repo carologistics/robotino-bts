@@ -794,7 +794,7 @@ class GrayBoxPlaneController(Node):
         target_xy = np.zeros(2, dtype=np.float64)
         yaw = 0.0
         if abs(lateral_error) >= self.lateral_deadband_m:
-            target_xy[1] = -lateral_error if self.invert_lateral else lateral_error
+            target_xy[1] = lateral_error if self.invert_lateral else -lateral_error
         elif abs(yaw_error) >= self.yaw_deadband_rad:
             yaw = -yaw_error if self.invert_angular else yaw_error
         elif abs(forward_error) >= self.distance_deadband_m:
