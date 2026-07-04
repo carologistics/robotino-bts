@@ -86,6 +86,8 @@ class GrayBoxPlaneController(Node):
         self.declare_parameter("ransac_threshold_m", 0.012)
         self.declare_parameter("min_inliers", 30)
         self.declare_parameter("max_plane_rms_m", 0.020)
+        self.declare_parameter("front_plane_depth_percentile", 45.0)
+        self.declare_parameter("front_plane_min_points", 80)
         self.declare_parameter("filter_alpha", 0.35)
 
         self.declare_parameter("target_distance_m", 0.22)
@@ -93,9 +95,7 @@ class GrayBoxPlaneController(Node):
         self.declare_parameter("lateral_deadband_m", 0.005)
         self.declare_parameter("distance_deadband_m", 0.025)
         self.declare_parameter("max_angular_speed", 0.035)
-        self.declare_parameter("max_lateral_speed", 0.15)
-        self.declare_parameter("lateral_acceleration", 0.5)
-        self.declare_parameter("lateral_correction_fraction", 0.5)
+        self.declare_parameter("max_lateral_speed", 0.05)
         self.declare_parameter("max_forward_speed", 0.10)
         self.declare_parameter("side_band_fraction", 0.20)
         self.declare_parameter("min_side_points", 8)
@@ -111,7 +111,7 @@ class GrayBoxPlaneController(Node):
         self.declare_parameter("yaw_depth_deadband_m", 0.010)
         self.declare_parameter("yaw_depth_kp", 0.6)
         self.declare_parameter("yaw_kp", 0.9)
-        self.declare_parameter("lateral_kp", 0.8)
+        self.declare_parameter("lateral_kp", 0.45)
         self.declare_parameter("forward_kp", 0.45)
         self.declare_parameter("invert_angular", True)
         self.declare_parameter("invert_lateral", True)
@@ -156,6 +156,8 @@ class GrayBoxPlaneController(Node):
         self.ransac_threshold_m = float(self.get_parameter("ransac_threshold_m").value)
         self.min_inliers = int(self.get_parameter("min_inliers").value)
         self.max_plane_rms_m = float(self.get_parameter("max_plane_rms_m").value)
+        self.front_plane_depth_percentile = float(self.get_parameter("front_plane_depth_percentile").value)
+        self.front_plane_min_points = int(self.get_parameter("front_plane_min_points").value)
         self.filter_alpha = float(self.get_parameter("filter_alpha").value)
 
         self.target_distance_m = float(self.get_parameter("target_distance_m").value)
@@ -164,8 +166,6 @@ class GrayBoxPlaneController(Node):
         self.distance_deadband_m = float(self.get_parameter("distance_deadband_m").value)
         self.max_angular_speed = abs(float(self.get_parameter("max_angular_speed").value))
         self.max_lateral_speed = abs(float(self.get_parameter("max_lateral_speed").value))
-        self.lateral_acceleration = abs(float(self.get_parameter("lateral_acceleration").value))
-        self.lateral_correction_fraction = float(np.clip(float(self.get_parameter("lateral_correction_fraction").value), 0.0, 1.0))
         self.max_forward_speed = abs(float(self.get_parameter("max_forward_speed").value))
         self.side_band_fraction = float(self.get_parameter("side_band_fraction").value)
         self.min_side_points = int(self.get_parameter("min_side_points").value)
@@ -202,8 +202,6 @@ class GrayBoxPlaneController(Node):
         self.filtered_yaw: Optional[float] = None
         self.filtered_lateral: Optional[float] = None
         self.filtered_distance: Optional[float] = None
-        self.lateral_speed = 0.0
-        self.last_control_time_ns: Optional[int] = None
         self.last_motor_goal_time_ns: Optional[int] = None
         self.motor_goal_pending = False
         self.motor_active = False
@@ -252,7 +250,7 @@ class GrayBoxPlaneController(Node):
             cv2.resizeWindow(self.window_name, 960, 540)
             cv2.namedWindow(self.topdown_window_name, cv2.WINDOW_NORMAL)
             cv2.resizeWindow(self.topdown_window_name, 640, 640)
-            topdown = self.draw_topdown_debug(None, None, None, None, "waiting")
+            topdown = self.draw_topdown_debug(None, None, None, None, "waiting", None)
             cv2.imshow(self.topdown_window_name, topdown)
             cv2.imwrite(self.topdown_output_path, topdown)
             cv2.waitKey(1)
@@ -290,8 +288,6 @@ class GrayBoxPlaneController(Node):
         self.align_started_ns = self.get_clock().now().nanoseconds
         self.align_centered_count = 0
         self.cluster_history.clear()
-        self.lateral_speed = 0.0
-        self.last_control_time_ns = None
         self.last_processed_image_stamp_ns = None
         self.filtered_yaw = None
         self.filtered_lateral = None
@@ -533,7 +529,12 @@ class GrayBoxPlaneController(Node):
             axis=2,
         )
 
-    def object_points(self, image_shape: tuple[int, int], object_mask: np.ndarray) -> tuple[Optional[np.ndarray], str]:
+    def object_points(
+        self,
+        image_shape: tuple[int, int],
+        object_mask: np.ndarray,
+        dilate_mask: bool = True,
+    ) -> tuple[Optional[np.ndarray], str]:
         if not self.cloud_fresh():
             return None, "no fresh cloud"
         cloud = self.latest_cloud
@@ -543,7 +544,7 @@ class GrayBoxPlaneController(Node):
             return None, "cloud missing float32 xyz"
 
         mask_source = object_mask.astype(np.uint8)
-        if self.mask_dilate_px > 0:
+        if dilate_mask and self.mask_dilate_px > 0:
             kernel_size = self.mask_dilate_px * 2 + 1
             mask_source = cv2.dilate(mask_source, np.ones((kernel_size, kernel_size), dtype=np.uint8))
         mask = cv2.resize(
@@ -566,6 +567,33 @@ class GrayBoxPlaneController(Node):
             indices = np.linspace(0, selected.shape[0] - 1, self.max_points).astype(np.int64)
             selected = selected[indices]
         return selected, f"points={selected.shape[0]}"
+
+    def front_plane_from_mask(
+        self,
+        image_shape: tuple[int, int],
+        object_mask: np.ndarray,
+    ) -> tuple[Optional[PlaneFit], Optional[float], str]:
+        points, status = self.object_points(image_shape, object_mask, dilate_mask=False)
+        if points is None:
+            return None, None, status
+
+        percentile = float(np.clip(self.front_plane_depth_percentile, 5.0, 95.0))
+        z_limit = float(np.percentile(points[:, 2], percentile))
+        front_points = points[points[:, 2] <= z_limit]
+        min_points = max(self.min_inliers, self.front_plane_min_points)
+        if front_points.shape[0] < min_points:
+            front_points = points
+        if front_points.shape[0] < self.min_inliers:
+            return None, None, f"{status} front_plane too few points={front_points.shape[0]}"
+
+        plane = self.fit_plane_ransac(front_points)
+        if plane is None:
+            return None, None, f"{status} front_plane failed points={front_points.shape[0]}"
+        yaw = self.plane_yaw_error(plane)
+        return plane, yaw, (
+            f"{status} front_plane_points={front_points.shape[0]} "
+            f"plane_yaw={math.degrees(yaw):+.1f}deg rms={plane.rms_m:.4f}m"
+        )
 
     def object_cluster(self, image_shape: tuple[int, int], object_mask: np.ndarray) -> tuple[Optional[ClusterStats], str]:
         if not self.cloud_fresh():
@@ -783,6 +811,9 @@ class GrayBoxPlaneController(Node):
             height_m=min(width, height),
         )
 
+    def plane_yaw_error(self, plane: PlaneFit) -> float:
+        return math.atan2(float(plane.normal[0]), max(1e-6, -float(plane.normal[2])))
+
     def filtered(self, old: Optional[float], new: float) -> float:
         if old is None:
             return new
@@ -819,65 +850,49 @@ class GrayBoxPlaneController(Node):
             stage = "done"
         return cmd, stage, yaw, lateral, distance
 
-    def command_from_cluster(self, cluster: ClusterStats) -> tuple[Twist, str, float, float, float]:
+    def command_from_cluster(
+        self,
+        cluster: ClusterStats,
+        plane_yaw: Optional[float] = None,
+    ) -> tuple[Twist, str, float, float, float]:
         yaw_delta = cluster.left_right_depth_delta_m
         lateral_error = -float(cluster.centroid[0])
         distance_error = float(cluster.centroid[2]) - self.target_distance_m
-        yaw = yaw_delta
+        yaw = float(plane_yaw) if plane_yaw is not None else yaw_delta
         lateral = lateral_error
         distance = distance_error
 
         cmd = Twist()
         lateral_active = abs(lateral) > self.lateral_deadband_m
-        yaw_active = abs(yaw) > self.yaw_depth_deadband_m
+        yaw_active = abs(yaw) > (self.yaw_deadband_rad if plane_yaw is not None else self.yaw_depth_deadband_m)
         if lateral_active:
-            requested_lateral = (lateral if self.invert_lateral else -lateral) * self.lateral_correction_fraction
-            cmd.linear.y = self.profiled_lateral_speed(requested_lateral)
-        else:
-            self.lateral_speed = 0.0
+            lateral_command_error = lateral if self.invert_lateral else -lateral
+            cmd.linear.y = float(
+                np.clip(
+                    self.lateral_kp * lateral_command_error,
+                    -self.max_lateral_speed,
+                    self.max_lateral_speed,
+                )
+            )
         if yaw_active:
-            # Positive angular.z turns left. If the left side of the box is closer
-            # than the right side, yaw_delta is negative and this commands left.
-            cmd.angular.z = float(np.clip(-self.yaw_depth_kp * yaw, -self.max_angular_speed, self.max_angular_speed))
+            if plane_yaw is not None:
+                # Positive angular.z turns left. The fitted plane yaw uses the same sign.
+                cmd.angular.z = float(np.clip(self.yaw_kp * yaw, -self.max_angular_speed, self.max_angular_speed))
+            else:
+                # Fallback: if the left side is closer, yaw_delta is negative and this commands left.
+                cmd.angular.z = float(np.clip(-self.yaw_depth_kp * yaw, -self.max_angular_speed, self.max_angular_speed))
         if lateral_active and yaw_active:
-            stage = "lateral_and_orient"
+            stage = "lateral_and_plane" if plane_yaw is not None else "lateral_and_orient"
         elif lateral_active:
             stage = "lateral"
         elif yaw_active:
-            stage = "orient_pointcloud"
+            stage = "orient_plane" if plane_yaw is not None else "orient_pointcloud"
         else:
             stage = "done"
         self.latest_topdown_object_xy = np.array([float(cluster.centroid[2]), -float(cluster.centroid[0])], dtype=np.float64)
         self.latest_topdown_target_xy = np.array([0.0, float(cmd.linear.y)], dtype=np.float64)
         self.latest_topdown_target_yaw = float(cmd.angular.z)
         return cmd, stage, yaw, lateral, distance
-
-    def profiled_lateral_speed(self, lateral_error: float) -> float:
-        error = abs(float(lateral_error))
-        if error <= self.lateral_deadband_m:
-            self.lateral_speed = 0.0
-            return 0.0
-
-        now_ns = self.get_clock().now().nanoseconds
-        if self.last_control_time_ns is None:
-            dt = 0.05
-        else:
-            dt = max(1e-3, min(0.2, (now_ns - self.last_control_time_ns) / 1_000_000_000.0))
-        self.last_control_time_ns = now_ns
-
-        max_speed = max(1e-6, self.max_lateral_speed)
-        acceleration = max(1e-6, self.lateral_acceleration)
-        braking_distance = max_speed * max_speed / (2.0 * acceleration)
-
-        if error > braking_distance:
-            self.lateral_speed = min(max_speed, self.lateral_speed + acceleration * dt)
-        else:
-            profile_speed = math.sqrt(2.0 * acceleration * error)
-            damping_speed = abs(self.lateral_kp) * error
-            self.lateral_speed = min(profile_speed, damping_speed, max_speed)
-
-        self.lateral_speed = min(self.lateral_speed, error / dt)
-        return math.copysign(self.lateral_speed, lateral_error)
 
     def yaw_to_quaternion(self, yaw: float) -> tuple[float, float]:
         return math.sin(0.5 * yaw), math.cos(0.5 * yaw)
@@ -1155,11 +1170,18 @@ class GrayBoxPlaneController(Node):
         if cluster is None:
             label = f"{stage}: no cluster"
         else:
+            if plane is None:
+                yaw_text = f"lr_dz={yaw or 0.0:+.3f}m"
+                plane_text = "plane=none"
+            else:
+                plane_yaw = self.plane_yaw_error(plane)
+                yaw_text = f"plane_yaw={math.degrees(plane_yaw):+.1f}deg"
+                plane_text = f"plane rms={plane.rms_m:.4f}m inliers={int(np.count_nonzero(plane.inlier_mask))}"
             label = (
-                f"{stage} lr_dz={yaw or 0.0:+.3f}m "
+                f"{stage} {yaw_text} "
                 f"Lz/Rz={cluster.left_mean[2]:.3f}/{cluster.right_mean[2]:.3f} "
                 f"lat={lateral or 0.0:+.3f}m front={cluster.centroid[2]:.3f}m err={distance or 0.0:+.3f}m "
-                f"pts={cluster.points.shape[0]} range<={self.max_depth_m:.1f}m "
+                f"pts={cluster.points.shape[0]} {plane_text} "
                 f"cmd x={cmd.linear.x:+.2f} y={cmd.linear.y:+.2f} z={cmd.angular.z:+.2f}"
             )
 
@@ -1174,6 +1196,7 @@ class GrayBoxPlaneController(Node):
         target_y: Optional[float],
         target_yaw: Optional[float],
         stage: str,
+        plane: Optional[PlaneFit] = None,
     ) -> np.ndarray:
         size = 640
         scale = 650.0
@@ -1229,6 +1252,43 @@ class GrayBoxPlaneController(Node):
                 f"lr_dz={cluster.left_right_depth_delta_m:+.3f}m"
             )
             cv2.putText(image, orientation_label, (20, 86), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (40, 40, 160), 2)
+
+        if plane is not None:
+            center_xy = np.array([float(plane.centroid[2]), -float(plane.centroid[0])], dtype=np.float64)
+            normal_xy = np.array([float(plane.normal[2]), -float(plane.normal[0])], dtype=np.float64)
+            norm = float(np.linalg.norm(normal_xy))
+            if norm > 1e-6:
+                normal_xy /= norm
+                tangent_xy = np.array([-normal_xy[1], normal_xy[0]], dtype=np.float64)
+                half_width = max(0.04, min(0.25, plane.width_m * 0.5))
+                a_xy = center_xy - tangent_xy * half_width
+                b_xy = center_xy + tangent_xy * half_width
+                center_px = to_px(float(center_xy[0]), float(center_xy[1]))
+                cv2.line(
+                    image,
+                    to_px(float(a_xy[0]), float(a_xy[1])),
+                    to_px(float(b_xy[0]), float(b_xy[1])),
+                    (80, 0, 180),
+                    4,
+                )
+                cv2.arrowedLine(
+                    image,
+                    center_px,
+                    to_px(float(center_xy[0] - normal_xy[0] * 0.08), float(center_xy[1] - normal_xy[1] * 0.08)),
+                    (180, 40, 180),
+                    2,
+                    tipLength=0.35,
+                )
+                plane_yaw = self.plane_yaw_error(plane)
+                cv2.putText(
+                    image,
+                    f"ransac plane yaw={math.degrees(plane_yaw):+.1f}deg rms={plane.rms_m:.3f}m",
+                    (20, 112),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.55,
+                    (100, 0, 150),
+                    2,
+                )
 
         if self.last_move_start_object_xy is not None:
             start_px = to_px(float(self.last_move_start_object_xy[0]), float(self.last_move_start_object_xy[1]))
@@ -1327,6 +1387,8 @@ class GrayBoxPlaneController(Node):
             self.latest_object_mask = object_mask
             cluster, status = self.object_cluster(image.shape[:2], object_mask)
             if cluster is not None:
+                plane, plane_yaw, plane_status = self.front_plane_from_mask(image.shape[:2], object_mask)
+                status = f"{status} {plane_status}"
                 self.last_cluster_centroid = cluster.centroid.copy()
                 self.last_cluster_stamp_ns = self.get_clock().now().nanoseconds
                 averaged = self.averaged_cluster(cluster)
@@ -1346,7 +1408,7 @@ class GrayBoxPlaneController(Node):
                     self.maybe_send_motor_goal()
                 else:
                     previous_object_xy = None if self.latest_topdown_object_xy is None else self.latest_topdown_object_xy.copy()
-                    cmd, stage, yaw, lateral, distance = self.command_from_cluster(averaged)
+                    cmd, stage, yaw, lateral, distance = self.command_from_cluster(averaged, plane_yaw)
                     target_x = 0.0
                     target_y = float(cmd.linear.y)
                     target_yaw = float(cmd.angular.z)
@@ -1378,8 +1440,6 @@ class GrayBoxPlaneController(Node):
             self.filtered_yaw = None
             self.filtered_lateral = None
             self.filtered_distance = None
-            self.lateral_speed = 0.0
-            self.last_control_time_ns = None
 
         if self.use_motor_move:
             if rclpy.ok():
@@ -1390,7 +1450,7 @@ class GrayBoxPlaneController(Node):
             self.cmd_pub.publish(Twist())
 
         debug = self.draw_debug(image, detection, object_mask, plane, stage, cmd, yaw, lateral, distance, cluster, depth_mask)
-        topdown = self.draw_topdown_debug(cluster, target_x, target_y, target_yaw, stage)
+        topdown = self.draw_topdown_debug(cluster, target_x, target_y, target_yaw, stage, plane)
         self.update_align_progress(stage == "done", cluster, stage, yaw, lateral, distance)
         self.frame_count += 1
         cv2.imwrite(self.output_path, debug)
@@ -1405,8 +1465,13 @@ class GrayBoxPlaneController(Node):
             direction_text = "" if target_yaw is None else (
                 f" {self.lateral_direction(target_y or 0.0)} {self.turn_direction(target_yaw)}"
             )
+            yaw_text = (
+                f"plane_yaw={math.degrees(yaw):+.1f}deg"
+                if plane is not None and yaw is not None
+                else f"lr_dz={yaw}"
+            )
             self.get_logger().info(
-                f"stage={stage} {self.depth_balance(yaw)} lr_dz={yaw} lat={lateral} front_err={distance} {status} "
+                f"stage={stage} {yaw_text} lat={lateral} front_err={distance} {status} "
                 f"cmd=({cmd.linear.x:+.2f},{cmd.linear.y:+.2f},{cmd.angular.z:+.2f}){target_text}{direction_text}"
             )
 
