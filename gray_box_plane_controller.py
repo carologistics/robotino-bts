@@ -43,6 +43,7 @@ class ClusterStats:
     left_right_depth_delta_m: float
     width_m: float
     height_m: float
+    nearest_depth_m: float
 
 
 class GrayBoxPlaneController(Node):
@@ -88,12 +89,13 @@ class GrayBoxPlaneController(Node):
         self.declare_parameter("max_plane_rms_m", 0.020)
         self.declare_parameter("filter_alpha", 0.35)
 
-        self.declare_parameter("target_distance_m", 0.22)
+        self.declare_parameter("target_distance_m", 0.10)
+        self.declare_parameter("approach_speed", 0.10)
         self.declare_parameter("yaw_deadband_deg", 3.0)
         self.declare_parameter("lateral_deadband_m", 0.005)
         self.declare_parameter("distance_deadband_m", 0.025)
-        self.declare_parameter("max_angular_speed", 0.035)
-        self.declare_parameter("max_lateral_speed", 0.05)
+        self.declare_parameter("max_angular_speed", 0.070)
+        self.declare_parameter("max_lateral_speed", 0.10)
         self.declare_parameter("max_forward_speed", 0.10)
         self.declare_parameter("side_band_fraction", 0.20)
         self.declare_parameter("min_side_points", 8)
@@ -107,9 +109,9 @@ class GrayBoxPlaneController(Node):
         self.declare_parameter("track_depth_radius_m", 0.25)
         self.declare_parameter("lost_stop_after_sec", 0.70)
         self.declare_parameter("yaw_depth_deadband_m", 0.010)
-        self.declare_parameter("yaw_depth_kp", 0.6)
-        self.declare_parameter("yaw_kp", 0.9)
-        self.declare_parameter("lateral_kp", 0.45)
+        self.declare_parameter("yaw_depth_kp", 1.2)
+        self.declare_parameter("yaw_kp", 1.8)
+        self.declare_parameter("lateral_kp", 0.90)
         self.declare_parameter("forward_kp", 0.45)
         self.declare_parameter("invert_angular", True)
         self.declare_parameter("invert_lateral", False)
@@ -157,6 +159,7 @@ class GrayBoxPlaneController(Node):
         self.filter_alpha = float(self.get_parameter("filter_alpha").value)
 
         self.target_distance_m = float(self.get_parameter("target_distance_m").value)
+        self.approach_speed = abs(float(self.get_parameter("approach_speed").value))
         self.yaw_deadband_rad = math.radians(float(self.get_parameter("yaw_deadband_deg").value))
         self.lateral_deadband_m = float(self.get_parameter("lateral_deadband_m").value)
         self.distance_deadband_m = float(self.get_parameter("distance_deadband_m").value)
@@ -669,6 +672,7 @@ class GrayBoxPlaneController(Node):
             left_right_depth_delta_m=delta,
             width_m=width,
             height_m=max(1e-6, y_max - y_min),
+            nearest_depth_m=float(np.min(points[:, 2])),
         )
 
     def averaged_cluster(self, cluster: ClusterStats) -> ClusterStats:
@@ -680,6 +684,7 @@ class GrayBoxPlaneController(Node):
                 float(cluster.left_right_depth_delta_m),
                 float(cluster.width_m),
                 float(cluster.height_m),
+                float(cluster.nearest_depth_m),
             )
         )
         centroids = np.array([entry[0] for entry in self.cluster_history], dtype=np.float64)
@@ -695,6 +700,7 @@ class GrayBoxPlaneController(Node):
             left_right_depth_delta_m=float(np.mean([entry[3] for entry in self.cluster_history])),
             width_m=float(np.mean([entry[4] for entry in self.cluster_history])),
             height_m=float(np.mean([entry[5] for entry in self.cluster_history])),
+            nearest_depth_m=float(np.mean([entry[6] for entry in self.cluster_history])),
         )
 
     def object_cluster_from_previous(self) -> tuple[Optional[ClusterStats], str]:
@@ -844,7 +850,7 @@ class GrayBoxPlaneController(Node):
     ) -> tuple[Twist, str, float, float, float]:
         yaw_delta = cluster.left_right_depth_delta_m
         lateral_error = -float(cluster.centroid[0])
-        distance_error = float(cluster.centroid[2]) - self.target_distance_m
+        distance_error = float(cluster.nearest_depth_m) - self.target_distance_m
         yaw = float(plane_yaw) if plane_yaw is not None else yaw_delta
         lateral = lateral_error
         distance = distance_error
@@ -852,6 +858,9 @@ class GrayBoxPlaneController(Node):
         cmd = Twist()
         lateral_active = abs(lateral) > self.lateral_deadband_m
         yaw_active = abs(yaw) > (self.yaw_deadband_rad if plane_yaw is not None else self.yaw_depth_deadband_m)
+        approach_active = distance > 0.0
+        if approach_active:
+            cmd.linear.x = float(np.clip(self.approach_speed, 0.0, self.max_forward_speed))
         if lateral_active:
             lateral_command_error = lateral if self.invert_lateral else -lateral
             cmd.linear.y = float(
@@ -868,7 +877,15 @@ class GrayBoxPlaneController(Node):
             else:
                 # Fallback: if the left side is closer, yaw_delta is negative and this commands left.
                 cmd.angular.z = float(np.clip(-self.yaw_depth_kp * yaw, -self.max_angular_speed, self.max_angular_speed))
-        if lateral_active and yaw_active:
+        if approach_active and lateral_active and yaw_active:
+            stage = "approach_lateral_plane" if plane_yaw is not None else "approach_lateral_orient"
+        elif approach_active and lateral_active:
+            stage = "approach_lateral"
+        elif approach_active and yaw_active:
+            stage = "approach_plane" if plane_yaw is not None else "approach_orient"
+        elif approach_active:
+            stage = "approach"
+        elif lateral_active and yaw_active:
             stage = "lateral_and_plane" if plane_yaw is not None else "lateral_and_orient"
         elif lateral_active:
             stage = "lateral"
@@ -877,7 +894,7 @@ class GrayBoxPlaneController(Node):
         else:
             stage = "done"
         self.latest_topdown_object_xy = np.array([float(cluster.centroid[2]), -float(cluster.centroid[0])], dtype=np.float64)
-        self.latest_topdown_target_xy = np.array([0.0, float(cmd.linear.y)], dtype=np.float64)
+        self.latest_topdown_target_xy = np.array([float(cmd.linear.x), float(cmd.linear.y)], dtype=np.float64)
         self.latest_topdown_target_yaw = float(cmd.angular.z)
         return cmd, stage, yaw, lateral, distance
 
@@ -1035,7 +1052,7 @@ class GrayBoxPlaneController(Node):
         distance: Optional[float],
     ) -> None:
         if cluster is not None:
-            self.align_latest_front_range = float(cluster.centroid[2])
+            self.align_latest_front_range = float(cluster.nearest_depth_m)
         if not self.align_goal_active():
             return
         if (
@@ -1052,7 +1069,7 @@ class GrayBoxPlaneController(Node):
         if self.align_centered_count >= self.centered_stable_frames:
             message = (
                 f"centered stage={stage} lr_dz={yaw or 0.0:+.4f}m "
-                f"lat={lateral or 0.0:+.4f}m front_err={distance or 0.0:+.4f}m"
+                f"lat={lateral or 0.0:+.4f}m nearest_err={distance or 0.0:+.4f}m"
             )
             self.finish_align_goal(True, message)
 
@@ -1067,8 +1084,14 @@ class GrayBoxPlaneController(Node):
             if rclpy.ok():
                 self.cmd_pub.publish(Twist())
         elif self.motion_enabled() and rclpy.ok():
+            target_x = float(cmd.linear.x)
+            target_y = float(cmd.linear.y)
+            target_yaw = float(cmd.angular.z)
             self.cmd_pub.publish(cmd)
         elif rclpy.ok():
+            target_x = float(cmd.linear.x)
+            target_y = float(cmd.linear.y)
+            target_yaw = float(cmd.angular.z)
             self.cmd_pub.publish(Twist())
         if self.frame_count % 5 == 0:
             if target_x is None:
@@ -1081,7 +1104,7 @@ class GrayBoxPlaneController(Node):
                 f" {self.lateral_direction(target_y or 0.0)} {self.turn_direction(target_yaw)}"
             )
             self.get_logger().info(
-                f"stage={stage} {self.depth_balance(yaw)} lr_dz={yaw} lat={lateral} front_err={distance} {status} "
+                f"stage={stage} {self.depth_balance(yaw)} lr_dz={yaw} lat={lateral} nearest_err={distance} {status} "
                 f"cmd=({cmd.linear.x:+.2f},{cmd.linear.y:+.2f},{cmd.angular.z:+.2f}){target_text}{direction_text}"
             )
         return cmd, stage, yaw, lateral, distance
@@ -1167,7 +1190,7 @@ class GrayBoxPlaneController(Node):
             label = (
                 f"{stage} {yaw_text} "
                 f"Lz/Rz={cluster.left_mean[2]:.3f}/{cluster.right_mean[2]:.3f} "
-                f"lat={lateral or 0.0:+.3f}m front={cluster.centroid[2]:.3f}m err={distance or 0.0:+.3f}m "
+                f"lat={lateral or 0.0:+.3f}m nearest={cluster.nearest_depth_m:.3f}m err={distance or 0.0:+.3f}m "
                 f"pts={cluster.points.shape[0]} {plane_text} "
                 f"cmd x={cmd.linear.x:+.2f} y={cmd.linear.y:+.2f} z={cmd.angular.z:+.2f}"
             )
@@ -1396,7 +1419,7 @@ class GrayBoxPlaneController(Node):
                 else:
                     previous_object_xy = None if self.latest_topdown_object_xy is None else self.latest_topdown_object_xy.copy()
                     cmd, stage, yaw, lateral, distance = self.command_from_cluster(averaged, plane_yaw)
-                    target_x = 0.0
+                    target_x = float(cmd.linear.x)
                     target_y = float(cmd.linear.y)
                     target_yaw = float(cmd.angular.z)
                     if previous_object_xy is not None:
@@ -1407,7 +1430,7 @@ class GrayBoxPlaneController(Node):
                 if self.cloud_tracking_enabled and self.use_motor_move:
                     yaw = averaged.left_right_depth_delta_m
                     lateral = -float(averaged.centroid[0])
-                    distance = float(averaged.centroid[2]) - self.target_distance_m
+                    distance = float(averaged.nearest_depth_m) - self.target_distance_m
                     centered = (
                         target_x is not None
                         and abs(target_x) < 1e-6
@@ -1458,7 +1481,7 @@ class GrayBoxPlaneController(Node):
                 else f"lr_dz={yaw}"
             )
             self.get_logger().info(
-                f"stage={stage} {yaw_text} lat={lateral} front_err={distance} {status} "
+                f"stage={stage} {yaw_text} lat={lateral} nearest_err={distance} {status} "
                 f"cmd=({cmd.linear.x:+.2f},{cmd.linear.y:+.2f},{cmd.angular.z:+.2f}){target_text}{direction_text}"
             )
 
