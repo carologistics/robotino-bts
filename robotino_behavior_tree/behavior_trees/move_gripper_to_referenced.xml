@@ -1,24 +1,13 @@
 <?xml version="1.0"?>
 <root BTCPP_format="4">
   <BehaviorTree ID="MoveGripperToReferenced">
-    <RetryUntilSuccessful num_attempts="3">
-      <Sequence>
-        <Fallback>
-          <IsGripperReferenced topic_name="gigatino/feedback"
-                               referenced="{gripper_referenced}" />
-          <CalibrateGripper action_name="gigatino/calibrate"
-                            status_code="{calibrate_status_code}"
-                            message="{calibrate_message}" />
-        </Fallback>
-        <MoveGripperTo action_name="gigatino/move"
-                       frame="{frame}"
-                       x="{x}"
-                       y="{y}"
-                       z="{z}"
-                       z_override_in_end_effector_home="{z_override_in_end_effector_home}"
-                       status_code="{move_status_code}"
-                       message="{move_message}" />
-      </Sequence>
-    </RetryUntilSuccessful>
+    <MoveGripperTo action_name="gigatino/move"
+                    frame="{frame}"
+                    x="{x}"
+                    y="{y}"
+                    z="{z}"
+                    z_override_in_end_effector_home="{z_override_in_end_effector_home}"
+                    status_code="{move_status_code}"
+                    message="{move_message}" />
   </BehaviorTree>
 </root>
