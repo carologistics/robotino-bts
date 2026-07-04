@@ -812,14 +812,20 @@ class GrayBoxPlaneController(Node):
         distance = distance_error
 
         cmd = Twist()
-        if abs(yaw) > self.yaw_depth_deadband_m:
-            stage = "orient_pointcloud"
+        lateral_active = abs(lateral) > self.lateral_deadband_m
+        yaw_active = abs(yaw) > self.yaw_depth_deadband_m
+        if lateral_active:
+            cmd.linear.y = float(np.clip(lateral if self.invert_lateral else -lateral, -self.max_lateral_speed, self.max_lateral_speed))
+        if yaw_active:
             # Positive angular.z turns left. If the left side of the box is closer
             # than the right side, yaw_delta is negative and this commands left.
             cmd.angular.z = float(np.clip(-self.yaw_depth_kp * yaw, -self.max_angular_speed, self.max_angular_speed))
-        elif abs(lateral) > self.lateral_deadband_m:
+        if lateral_active and yaw_active:
+            stage = "lateral_and_orient"
+        elif lateral_active:
             stage = "lateral"
-            cmd.linear.y = float(np.clip(lateral if self.invert_lateral else -lateral, -self.max_lateral_speed, self.max_lateral_speed))
+        elif yaw_active:
+            stage = "orient_pointcloud"
         else:
             stage = "done"
         self.latest_topdown_object_xy = np.array([float(cluster.centroid[2]), -float(cluster.centroid[0])], dtype=np.float64)
@@ -1161,6 +1167,22 @@ class GrayBoxPlaneController(Node):
                 (0, 80, 180),
                 2,
             )
+
+        if cluster is not None:
+            left_xy = np.array([float(cluster.left_mean[2]), -float(cluster.left_mean[0])], dtype=np.float64)
+            right_xy = np.array([float(cluster.right_mean[2]), -float(cluster.right_mean[0])], dtype=np.float64)
+            left_px = to_px(float(left_xy[0]), float(left_xy[1]))
+            right_px = to_px(float(right_xy[0]), float(right_xy[1]))
+            cv2.line(image, left_px, right_px, (40, 40, 220), 3)
+            cv2.circle(image, left_px, 8, (255, 0, 255), -1)
+            cv2.circle(image, right_px, 8, (255, 180, 0), -1)
+            cv2.putText(image, "L", (left_px[0] + 8, left_px[1] - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (180, 0, 180), 2)
+            cv2.putText(image, "R", (right_px[0] + 8, right_px[1] - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (180, 100, 0), 2)
+            orientation_label = (
+                f"box orientation: {self.depth_balance(cluster.left_right_depth_delta_m)} "
+                f"lr_dz={cluster.left_right_depth_delta_m:+.3f}m"
+            )
+            cv2.putText(image, orientation_label, (20, 86), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (40, 40, 160), 2)
 
         if self.last_move_start_object_xy is not None:
             start_px = to_px(float(self.last_move_start_object_xy[0]), float(self.last_move_start_object_xy[1]))
