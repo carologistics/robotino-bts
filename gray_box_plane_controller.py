@@ -18,7 +18,7 @@ from motor_move_msgs.action import MotorMove, MoveToShelf
 from rclpy.action import ActionClient, ActionServer, CancelResponse, GoalResponse
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Image, PointCloud2, PointField
 
 
@@ -63,8 +63,8 @@ class GrayBoxPlaneController(Node):
         self.declare_parameter("topdown_window_name", "gray box top down")
 
         self.declare_parameter("enable_motion", False)
-        self.declare_parameter("max_image_age_sec", 1.00)
-        self.declare_parameter("max_cloud_age_sec", 1.20)
+        self.declare_parameter("max_image_age_sec", 0.25)
+        self.declare_parameter("max_cloud_age_sec", 0.35)
         self.declare_parameter("max_future_stamp_sec", 0.20)
 
         self.declare_parameter("gray_saturation_max", 70)
@@ -190,6 +190,7 @@ class GrayBoxPlaneController(Node):
         self.bridge = CvBridge()
         self.latest_cloud: Optional[PointCloud2] = None
         self.latest_cloud_stamp_ns: Optional[int] = None
+        self.last_processed_image_stamp_ns: Optional[int] = None
         self.latest_image: Optional[np.ndarray] = None
         self.latest_detection: Optional[tuple] = None
         self.latest_object_mask: Optional[np.ndarray] = None
@@ -234,8 +235,14 @@ class GrayBoxPlaneController(Node):
             cancel_callback=self.on_align_cancel,
             handle_accepted_callback=self.on_align_accepted,
         )
-        self.create_subscription(Image, self.image_topic, self.on_image, qos_profile_sensor_data)
-        self.create_subscription(PointCloud2, self.pointcloud_topic, self.on_cloud, qos_profile_sensor_data)
+        sensor_qos = QoSProfile(
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.VOLATILE,
+        )
+        self.create_subscription(Image, self.image_topic, self.on_image, sensor_qos)
+        self.create_subscription(PointCloud2, self.pointcloud_topic, self.on_cloud, sensor_qos)
         self.create_timer(0.1, self.on_align_timer)
 
         if self.show_gui:
@@ -283,6 +290,7 @@ class GrayBoxPlaneController(Node):
         self.cluster_history.clear()
         self.lateral_speed = 0.0
         self.last_control_time_ns = None
+        self.last_processed_image_stamp_ns = None
         self.filtered_yaw = None
         self.filtered_lateral = None
         self.filtered_distance = None
@@ -1281,6 +1289,17 @@ class GrayBoxPlaneController(Node):
             if self.motion_enabled():
                 self.stop()
             return
+        image_stamp_ns = self.stamp_to_ns(msg)
+        if image_stamp_ns is not None:
+            if (
+                self.last_processed_image_stamp_ns is not None
+                and image_stamp_ns <= self.last_processed_image_stamp_ns
+            ):
+                self.get_logger().warn("dropping out-of-order image", throttle_duration_sec=1.0)
+                if self.motion_enabled():
+                    self.stop()
+                return
+            self.last_processed_image_stamp_ns = image_stamp_ns
 
         image = self.image_from_msg(msg)
         if image is None:
