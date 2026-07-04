@@ -18,11 +18,12 @@
            z higher = grabs further away from the robot
       -->
       <Sleep msec="350" />
+      <Script code="box_pick_x := object_end_effector_home_x; box_pick_y := object_end_effector_home_y - 0.01; box_pick_z := object_end_effector_home_z - 0.025" />
       <SubTree ID="MoveGripperToReferenced"
-               frame="tracked_object"
-               x="0.0"
-               y="-0.01"
-               z="-0.025"
+               frame="end_effector_home"
+               x="{box_pick_x}"
+               y="{box_pick_y}"
+               z="{box_pick_z}"
                z_override_in_end_effector_home="0.08" />
       <SetGripper action_name="gigatino/gripper"
                   open="false"

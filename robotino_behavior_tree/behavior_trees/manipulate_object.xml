@@ -56,7 +56,16 @@
                 success="{object_acquisition_success}"
                 error="{object_acquisition_error}"
                 acquired_object_tf_name="{acquired_object_tf_name}"
-                acquired_approach_tf_name="{acquired_approach_tf_name}" />
+                acquired_approach_tf_name="{acquired_approach_tf_name}"
+                object_base_x="{object_base_x}"
+                object_base_y="{object_base_y}"
+                object_base_z="{object_base_z}"
+                approach_base_x="{approach_base_x}"
+                approach_base_y="{approach_base_y}"
+                approach_base_yaw="{approach_base_yaw}"
+                object_end_effector_home_x="{object_end_effector_home_x}"
+                object_end_effector_home_y="{object_end_effector_home_y}"
+                object_end_effector_home_z="{object_end_effector_home_z}" />
               <AlwaysSuccess />
               <AlwaysFailure />
             </Switch2>
@@ -67,10 +76,10 @@
         <Switch2 variable="{action}" case_1="pick" case_2="put">
           <RetryUntilSuccessful num_attempts="3">
             <MotorMove action_name="motor_move_action"
-                      frame_id="tracked_object_approach"
-                      x="0.0"
-                      y="0.0"
-                      yaw="0.0" />
+                       frame_id="base_link"
+                       x="{approach_base_x}"
+                       y="{approach_base_y}"
+                       yaw="{approach_base_yaw}" />
           </RetryUntilSuccessful>
           <RetryUntilSuccessful num_attempts="2">
             <MotorMove action_name="motor_move_action"
@@ -101,13 +110,30 @@
               success="{object_acquisition_success}"
               error="{object_acquisition_error}"
               acquired_object_tf_name="{acquired_object_tf_name}"
-              acquired_approach_tf_name="{acquired_approach_tf_name}" />
+              acquired_approach_tf_name="{acquired_approach_tf_name}"
+              object_base_x="{object_base_x}"
+              object_base_y="{object_base_y}"
+              object_base_z="{object_base_z}"
+              approach_base_x="{approach_base_x}"
+              approach_base_y="{approach_base_y}"
+              approach_base_yaw="{approach_base_yaw}"
+              object_end_effector_home_x="{object_end_effector_home_x}"
+              object_end_effector_home_y="{object_end_effector_home_y}"
+              object_end_effector_home_z="{object_end_effector_home_z}" />
             <Switch2 variable="{object_type}" case_1="eurobox" case_2="lego">
               <RetryUntilSuccessful num_attempts="3">
-                <SubTree ID="PickBox" _autoremap="true" />
+                <SubTree ID="PickBox"
+                         _autoremap="true"
+                         object_end_effector_home_x="{object_end_effector_home_x}"
+                         object_end_effector_home_y="{object_end_effector_home_y}"
+                         object_end_effector_home_z="{object_end_effector_home_z}" />
               </RetryUntilSuccessful>
               <RetryUntilSuccessful num_attempts="3">
-                <SubTree ID="PickLego" _autoremap="true" />
+                <SubTree ID="PickLego"
+                         _autoremap="true"
+                         object_end_effector_home_x="{object_end_effector_home_x}"
+                         object_end_effector_home_y="{object_end_effector_home_y}"
+                         object_end_effector_home_z="{object_end_effector_home_z}" />
               </RetryUntilSuccessful>
               <AlwaysFailure />
             </Switch2>

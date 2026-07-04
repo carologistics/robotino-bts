@@ -54,8 +54,17 @@ public:
         BT::InputPort<double>("max_position_jump", "Maximum object position jump between stable frames in meters"),
         BT::OutputPort<bool>("success", "Whether object acquisition succeeded"),
         BT::OutputPort<std::string>("error", "Error returned by object acquisition"),
-        BT::OutputPort<std::string>("acquired_object_tf_name", "Resolved frozen object TF frame"),
-        BT::OutputPort<std::string>("acquired_approach_tf_name", "Resolved frozen approach TF frame"),
+        BT::OutputPort<std::string>("acquired_object_tf_name", "Resolved legacy object TF frame"),
+        BT::OutputPort<std::string>("acquired_approach_tf_name", "Resolved legacy approach TF frame"),
+        BT::OutputPort<double>("object_base_x", "Acquired object x in base_link"),
+        BT::OutputPort<double>("object_base_y", "Acquired object y in base_link"),
+        BT::OutputPort<double>("object_base_z", "Acquired object z in base_link"),
+        BT::OutputPort<double>("approach_base_x", "Approach target x in base_link"),
+        BT::OutputPort<double>("approach_base_y", "Approach target y in base_link"),
+        BT::OutputPort<double>("approach_base_yaw", "Approach target yaw in base_link"),
+        BT::OutputPort<double>("object_end_effector_home_x", "Acquired object x in end_effector_home"),
+        BT::OutputPort<double>("object_end_effector_home_y", "Acquired object y in end_effector_home"),
+        BT::OutputPort<double>("object_end_effector_home_z", "Acquired object z in end_effector_home"),
         BT::OutputPort<bool>("detection_valid", "Feedback: current detection is valid"),
         BT::OutputPort<unsigned>("stable_frames", "Feedback: consecutive stable detection count"),
         BT::OutputPort<double>("object_distance", "Feedback: selected object distance in meters"),
@@ -117,6 +126,15 @@ public:
     setOutput("error", result.result->error);
     setOutput("acquired_object_tf_name", result.result->object_tf_name);
     setOutput("acquired_approach_tf_name", result.result->approach_tf_name);
+    setOutput("object_base_x", result.result->object_base_x);
+    setOutput("object_base_y", result.result->object_base_y);
+    setOutput("object_base_z", result.result->object_base_z);
+    setOutput("approach_base_x", result.result->approach_base_x);
+    setOutput("approach_base_y", result.result->approach_base_y);
+    setOutput("approach_base_yaw", result.result->approach_base_yaw);
+    setOutput("object_end_effector_home_x", result.result->object_end_effector_home_x);
+    setOutput("object_end_effector_home_y", result.result->object_end_effector_home_y);
+    setOutput("object_end_effector_home_z", result.result->object_end_effector_home_z);
 
     if(!result.result->success)
     {
@@ -124,9 +142,16 @@ public:
       return BT::NodeStatus::FAILURE;
     }
 
-    RCLCPP_INFO(logger(), "%s completed successfully: object_tf=%s approach_tf=%s",
-                name().c_str(), result.result->object_tf_name.c_str(),
-                result.result->approach_tf_name.c_str());
+    RCLCPP_INFO(logger(),
+                "%s completed successfully: object_base=(%.3f, %.3f, %.3f) "
+                "approach_base=(%.3f, %.3f, yaw=%.3f) "
+                "object_end_effector_home=(%.3f, %.3f, %.3f)",
+                name().c_str(), result.result->object_base_x, result.result->object_base_y,
+                result.result->object_base_z, result.result->approach_base_x,
+                result.result->approach_base_y, result.result->approach_base_yaw,
+                result.result->object_end_effector_home_x,
+                result.result->object_end_effector_home_y,
+                result.result->object_end_effector_home_z);
     return BT::NodeStatus::SUCCESS;
   }
 

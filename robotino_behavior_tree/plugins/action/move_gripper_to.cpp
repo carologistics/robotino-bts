@@ -155,8 +155,31 @@ public:
     }
     else
     {
-      const auto target_in_limit_frame = transformTargetToFrame(
-          requested_frame, raw_x, raw_y, raw_z, limit_frame);
+      geometry_msgs::msg::PoseStamped target_in_limit_frame;
+      if(requested_frame == limit_frame)
+      {
+        target_in_limit_frame.header.frame_id = limit_frame;
+        target_in_limit_frame.pose.position.x = raw_x;
+        target_in_limit_frame.pose.position.y = raw_y;
+        target_in_limit_frame.pose.position.z = raw_z;
+        target_in_limit_frame.pose.orientation.w = 1.0;
+        RCLCPP_INFO(logger(),
+                    "%s using target already expressed in %s: (%.3f, %.3f, %.3f)",
+                    name().c_str(), limit_frame.c_str(), raw_x, raw_y, raw_z);
+      }
+      else
+      {
+        target_in_limit_frame = transformTargetToFrame(
+            requested_frame, raw_x, raw_y, raw_z, limit_frame);
+        RCLCPP_INFO(logger(),
+                    "%s transformed target from %s (%.3f, %.3f, %.3f) to %s "
+                    "(%.3f, %.3f, %.3f) before z override and limit checks",
+                    name().c_str(), requested_frame.c_str(), raw_x, raw_y, raw_z,
+                    limit_frame.c_str(), target_in_limit_frame.pose.position.x,
+                    target_in_limit_frame.pose.position.y,
+                    target_in_limit_frame.pose.position.z);
+      }
+
       double z_before_limits = target_in_limit_frame.pose.position.z;
       target_x = normalizeAxisInput("x", target_in_limit_frame.pose.position.x,
                                     x_min, x_max, upper_limit_factor,
@@ -173,13 +196,6 @@ public:
       target_z = normalizeAxisInput("z", z_before_limits, z_min, z_max,
                                     upper_limit_factor, lower_limit_fraction);
       target_frame = limit_frame;
-      RCLCPP_INFO(logger(),
-                  "%s transformed target from %s (%.3f, %.3f, %.3f) to %s "
-                  "(%.3f, %.3f, %.3f) before z override and limit checks",
-                  name().c_str(), requested_frame.c_str(), raw_x, raw_y, raw_z,
-                  limit_frame.c_str(), target_in_limit_frame.pose.position.x,
-                  target_in_limit_frame.pose.position.y,
-                  target_in_limit_frame.pose.position.z);
     }
 
     goal.x = static_cast<float>(target_x);

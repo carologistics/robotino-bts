@@ -17,11 +17,12 @@
            y higher = grabs lower
            z higher = grabs further away from the robot
       -->
+      <Script code="lego_pick_x := object_end_effector_home_x; lego_pick_y := object_end_effector_home_y - 0.024; lego_pick_z := object_end_effector_home_z - 0.03" />
       <SubTree ID="MoveGripperToReferenced"
-               frame="tracked_object"
-               x="0.0"
-               y="-0.024"
-               z="-0.03"
+               frame="end_effector_home"
+               x="{lego_pick_x}"
+               y="{lego_pick_y}"
+               z="{lego_pick_z}"
                z_override_in_end_effector_home="" />
       <SetGripper action_name="gigatino/gripper"
                   open="false"

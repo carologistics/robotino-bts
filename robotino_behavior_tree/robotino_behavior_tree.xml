@@ -101,8 +101,17 @@
 
       <output_port name="success">Whether object acquisition succeeded.</output_port>
       <output_port name="error">Error returned by object acquisition.</output_port>
-      <output_port name="acquired_object_tf_name">Resolved frozen object TF frame.</output_port>
-      <output_port name="acquired_approach_tf_name">Resolved frozen approach TF frame.</output_port>
+      <output_port name="acquired_object_tf_name">Resolved legacy object TF frame.</output_port>
+      <output_port name="acquired_approach_tf_name">Resolved legacy approach TF frame.</output_port>
+      <output_port name="object_base_x">Acquired object x in base_link.</output_port>
+      <output_port name="object_base_y">Acquired object y in base_link.</output_port>
+      <output_port name="object_base_z">Acquired object z in base_link.</output_port>
+      <output_port name="approach_base_x">Approach target x in base_link.</output_port>
+      <output_port name="approach_base_y">Approach target y in base_link.</output_port>
+      <output_port name="approach_base_yaw">Approach target yaw in base_link.</output_port>
+      <output_port name="object_end_effector_home_x">Acquired object x in end_effector_home.</output_port>
+      <output_port name="object_end_effector_home_y">Acquired object y in end_effector_home.</output_port>
+      <output_port name="object_end_effector_home_z">Acquired object z in end_effector_home.</output_port>
       <output_port name="detection_valid">Feedback: current detection is valid.</output_port>
       <output_port name="stable_frames">Feedback: consecutive stable detection count.</output_port>
       <output_port name="object_distance">Feedback: selected object distance in meters.</output_port>
@@ -128,6 +137,18 @@
       <input_port name="y">Target y in frame.</input_port>
       <input_port name="z">Target z in frame.</input_port>
       <input_port name="z_override_in_end_effector_home" default="">Optional z target in end_effector_home after transforming absolute goals; empty disables.</input_port>
+    </SubTree>
+
+    <SubTree ID="PickBox">
+      <input_port name="object_end_effector_home_x">Acquired object x in end_effector_home.</input_port>
+      <input_port name="object_end_effector_home_y">Acquired object y in end_effector_home.</input_port>
+      <input_port name="object_end_effector_home_z">Acquired object z in end_effector_home.</input_port>
+    </SubTree>
+
+    <SubTree ID="PickLego">
+      <input_port name="object_end_effector_home_x">Acquired object x in end_effector_home.</input_port>
+      <input_port name="object_end_effector_home_y">Acquired object y in end_effector_home.</input_port>
+      <input_port name="object_end_effector_home_z">Acquired object z in end_effector_home.</input_port>
     </SubTree>
 
     <SubTree ID="ManipulateObject">
