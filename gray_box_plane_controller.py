@@ -91,20 +91,23 @@ class GrayBoxPlaneController(Node):
 
         self.declare_parameter("target_distance_m", 0.10)
         self.declare_parameter("approach_speed", 0.10)
+        self.declare_parameter("motor_linear_speed", 0.10)
+        self.declare_parameter("motor_angular_speed", 0.30)
+        self.declare_parameter("max_motor_step_dt_sec", 0.25)
         self.declare_parameter("yaw_deadband_deg", 3.0)
         self.declare_parameter("lateral_deadband_m", 0.005)
         self.declare_parameter("distance_deadband_m", 0.025)
-        self.declare_parameter("max_angular_speed", 0.070)
+        self.declare_parameter("max_angular_speed", 0.30)
         self.declare_parameter("max_lateral_speed", 0.10)
         self.declare_parameter("max_forward_speed", 0.10)
         self.declare_parameter("side_band_fraction", 0.20)
         self.declare_parameter("min_side_points", 8)
         self.declare_parameter("cloud_tracking_enabled", False)
-        self.declare_parameter("use_motor_move", False)
-        self.declare_parameter("motor_goal_period_sec", 1.0)
-        self.declare_parameter("motor_result_wait_sec", 0.2)
+        self.declare_parameter("use_motor_move", True)
+        self.declare_parameter("motor_goal_period_sec", 0.0)
+        self.declare_parameter("motor_result_wait_sec", 0.0)
         self.declare_parameter("position_average_frames", 5)
-        self.declare_parameter("require_fresh_image_after_motion", True)
+        self.declare_parameter("require_fresh_image_after_motion", False)
         self.declare_parameter("track_radius_m", 0.18)
         self.declare_parameter("track_depth_radius_m", 0.25)
         self.declare_parameter("lost_stop_after_sec", 0.70)
@@ -160,6 +163,9 @@ class GrayBoxPlaneController(Node):
 
         self.target_distance_m = float(self.get_parameter("target_distance_m").value)
         self.approach_speed = abs(float(self.get_parameter("approach_speed").value))
+        self.motor_linear_speed = abs(float(self.get_parameter("motor_linear_speed").value))
+        self.motor_angular_speed = abs(float(self.get_parameter("motor_angular_speed").value))
+        self.max_motor_step_dt_sec = max(0.01, float(self.get_parameter("max_motor_step_dt_sec").value))
         self.yaw_deadband_rad = math.radians(float(self.get_parameter("yaw_deadband_deg").value))
         self.lateral_deadband_m = float(self.get_parameter("lateral_deadband_m").value)
         self.distance_deadband_m = float(self.get_parameter("distance_deadband_m").value)
@@ -202,6 +208,7 @@ class GrayBoxPlaneController(Node):
         self.filtered_lateral: Optional[float] = None
         self.filtered_distance: Optional[float] = None
         self.last_motor_goal_time_ns: Optional[int] = None
+        self.last_motor_step_frame_ns: Optional[int] = None
         self.motor_goal_pending = False
         self.motor_active = False
         self.await_fresh_image_after_motion = False
@@ -288,6 +295,7 @@ class GrayBoxPlaneController(Node):
         self.align_centered_count = 0
         self.cluster_history.clear()
         self.last_processed_image_stamp_ns = None
+        self.last_motor_step_frame_ns = None
         self.filtered_yaw = None
         self.filtered_lateral = None
         self.filtered_distance = None
@@ -924,21 +932,30 @@ class GrayBoxPlaneController(Node):
             return "right_closer"
         return "depth_equal"
 
-    def update_base_motor_goal(self, cluster: ClusterStats) -> tuple[float, float, float]:
-        object_xy = np.array([float(cluster.centroid[2]), -float(cluster.centroid[0])], dtype=np.float64)
-        lateral_error = float(object_xy[1])
+    def motor_step_dt(self, frame_ns: Optional[int]) -> float:
+        now_ns = frame_ns or self.get_clock().now().nanoseconds
+        if self.last_motor_step_frame_ns is None:
+            return min(0.10, self.max_motor_step_dt_sec)
+        dt = (now_ns - self.last_motor_step_frame_ns) / 1_000_000_000.0
+        return float(np.clip(dt, 0.0, self.max_motor_step_dt_sec))
 
-        if abs(cluster.left_right_depth_delta_m) < self.yaw_depth_deadband_m:
-            yaw_error = 0.0
-        else:
-            yaw_error = -math.atan2(float(cluster.left_right_depth_delta_m), max(float(cluster.width_m), 1e-3))
+    def update_base_motor_goal(
+        self,
+        cluster: ClusterStats,
+        cmd: Twist,
+        frame_ns: Optional[int],
+    ) -> tuple[float, float, float]:
+        object_xy = np.array([float(cluster.centroid[2]), -float(cluster.centroid[0])], dtype=np.float64)
+        dt = self.motor_step_dt(frame_ns)
 
         target_xy = np.zeros(2, dtype=np.float64)
         yaw = 0.0
-        if abs(lateral_error) >= self.lateral_deadband_m:
-            target_xy[1] = lateral_error if self.invert_lateral else -lateral_error
-        elif abs(yaw_error) >= self.yaw_deadband_rad:
-            yaw = yaw_error if self.invert_angular else -yaw_error
+        if abs(cmd.linear.x) > 1e-6:
+            target_xy[0] = math.copysign(self.motor_linear_speed * dt, cmd.linear.x)
+        if abs(cmd.linear.y) > 1e-6:
+            target_xy[1] = math.copysign(self.motor_linear_speed * dt, cmd.linear.y)
+        if abs(cmd.angular.z) > 1e-6:
+            yaw = math.copysign(self.motor_angular_speed * dt, cmd.angular.z)
         self.latest_topdown_object_xy = object_xy.copy()
         self.latest_topdown_target_xy = target_xy.copy()
         self.latest_topdown_target_yaw = yaw
@@ -956,7 +973,7 @@ class GrayBoxPlaneController(Node):
 
         return float(target_xy[0]), float(target_xy[1]), yaw
 
-    def maybe_send_motor_goal(self) -> None:
+    def maybe_send_motor_goal(self, frame_ns: Optional[int] = None) -> None:
         if (
             not self.motion_enabled()
             or not self.use_motor_move
@@ -989,6 +1006,7 @@ class GrayBoxPlaneController(Node):
         self.motor_goal_pending = True
         self.motor_active = True
         self.last_motor_goal_time_ns = now_ns
+        self.last_motor_step_frame_ns = frame_ns or now_ns
         pose = self.latest_base_goal.pose
         yaw = math.atan2(2.0 * pose.orientation.w * pose.orientation.z, 1.0 - 2.0 * pose.orientation.z * pose.orientation.z)
         self.get_logger().info(
@@ -1079,8 +1097,9 @@ class GrayBoxPlaneController(Node):
         self.last_cluster_stamp_ns = self.get_clock().now().nanoseconds
         target_x = target_y = target_yaw = None
         if self.use_motor_move:
-            target_x, target_y, target_yaw = self.update_base_motor_goal(cluster)
-            self.maybe_send_motor_goal()
+            frame_ns = self.get_clock().now().nanoseconds
+            target_x, target_y, target_yaw = self.update_base_motor_goal(cluster, cmd, frame_ns)
+            self.maybe_send_motor_goal(frame_ns)
             if rclpy.ok():
                 self.cmd_pub.publish(Twist())
         elif self.motion_enabled() and rclpy.ok():
@@ -1412,13 +1431,13 @@ class GrayBoxPlaneController(Node):
                         [float(averaged.centroid[2]), -float(averaged.centroid[0])],
                         dtype=np.float64,
                     )
+                cmd, stage, yaw, lateral, distance = self.command_from_cluster(averaged, plane_yaw)
                 if self.use_motor_move:
-                    target_x, target_y, target_yaw = self.update_base_motor_goal(averaged)
+                    target_x, target_y, target_yaw = self.update_base_motor_goal(averaged, cmd, image_stamp_ns)
                     self.await_fresh_image_after_motion = False
-                    self.maybe_send_motor_goal()
+                    self.maybe_send_motor_goal(image_stamp_ns)
                 else:
                     previous_object_xy = None if self.latest_topdown_object_xy is None else self.latest_topdown_object_xy.copy()
-                    cmd, stage, yaw, lateral, distance = self.command_from_cluster(averaged, plane_yaw)
                     target_x = float(cmd.linear.x)
                     target_y = float(cmd.linear.y)
                     target_yaw = float(cmd.angular.z)

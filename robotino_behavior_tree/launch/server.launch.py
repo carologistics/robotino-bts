@@ -53,7 +53,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "gray_box_use_motor_move",
-                default_value="false",
+                default_value="true",
                 description="Use motor_move_action goals instead of cmd_vel for gray box alignment.",
             ),
             DeclareLaunchArgument(

@@ -8,7 +8,7 @@ ros2 launch robotino_behavior_tree server.launch.py \
   namespace:="${namespace}" \
   gray_box_show_gui:=true \
   gray_box_enable_motion:=false \
-  gray_box_use_motor_move:=false \
+  gray_box_use_motor_move:=true \
   gray_box_run_only_during_action:=false &
 
 launch_pid=$!
