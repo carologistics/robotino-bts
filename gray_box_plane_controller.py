@@ -206,6 +206,13 @@ class GrayBoxPlaneController(Node):
         self.latest_topdown_object_xy: Optional[np.ndarray] = None
         self.latest_topdown_target_xy: Optional[np.ndarray] = None
         self.latest_topdown_target_yaw = 0.0
+        self.pending_move_start_object_xy: Optional[np.ndarray] = None
+        self.pending_move_target_xy: Optional[np.ndarray] = None
+        self.pending_move_target_yaw = 0.0
+        self.last_move_start_object_xy: Optional[np.ndarray] = None
+        self.last_move_target_xy: Optional[np.ndarray] = None
+        self.last_move_target_yaw = 0.0
+        self.last_move_end_object_xy: Optional[np.ndarray] = None
         self.cluster_history = deque(maxlen=self.position_average_frames)
         self.align_goal_handle = None
         self.align_started_ns: Optional[int] = None
@@ -853,7 +860,7 @@ class GrayBoxPlaneController(Node):
         yaw = 0.0
         if abs(lateral_error) >= self.lateral_deadband_m:
             target_xy[1] = lateral_error if self.invert_lateral else -lateral_error
-        if abs(yaw_error) >= self.yaw_deadband_rad:
+        elif abs(yaw_error) >= self.yaw_deadband_rad:
             yaw = yaw_error if self.invert_angular else -yaw_error
         self.latest_topdown_object_xy = object_xy.copy()
         self.latest_topdown_target_xy = target_xy.copy()
@@ -898,6 +905,10 @@ class GrayBoxPlaneController(Node):
 
         action_goal = MotorMove.Goal()
         action_goal.motor_goal = self.latest_base_goal
+        if self.latest_topdown_object_xy is not None and self.latest_topdown_target_xy is not None:
+            self.pending_move_start_object_xy = self.latest_topdown_object_xy.copy()
+            self.pending_move_target_xy = self.latest_topdown_target_xy.copy()
+            self.pending_move_target_yaw = self.latest_topdown_target_yaw
         self.motor_goal_pending = True
         self.motor_active = True
         self.last_motor_goal_time_ns = now_ns
@@ -1140,6 +1151,17 @@ class GrayBoxPlaneController(Node):
                 2,
             )
 
+        if self.last_move_start_object_xy is not None:
+            start_px = to_px(float(self.last_move_start_object_xy[0]), float(self.last_move_start_object_xy[1]))
+            cv2.circle(image, start_px, 9, (255, 80, 0), -1)
+            cv2.putText(image, "before", (start_px[0] + 10, start_px[1] + 18), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (180, 70, 0), 2)
+        if self.last_move_end_object_xy is not None:
+            end_px = to_px(float(self.last_move_end_object_xy[0]), float(self.last_move_end_object_xy[1]))
+            cv2.circle(image, end_px, 9, (0, 160, 0), -1)
+            cv2.putText(image, "after", (end_px[0] + 10, end_px[1] + 18), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (0, 120, 0), 2)
+            if self.last_move_start_object_xy is not None:
+                cv2.arrowedLine(image, start_px, end_px, (0, 140, 0), 2, tipLength=0.2)
+
         if target_x is not None and target_y is not None and target_yaw is not None:
             target_px = to_px(float(target_x), float(target_y))
             cv2.arrowedLine(image, to_px(0.0, 0.0), target_px, (220, 50, 50), 3, tipLength=0.25)
@@ -1156,6 +1178,28 @@ class GrayBoxPlaneController(Node):
                 2,
             )
             cv2.putText(image, yaw_text, (20, size - 18), cv2.FONT_HERSHEY_SIMPLEX, 0.58, (130, 40, 160), 2)
+        elif self.last_move_target_xy is not None:
+            target_px = to_px(float(self.last_move_target_xy[0]), float(self.last_move_target_xy[1]))
+            cv2.arrowedLine(image, to_px(0.0, 0.0), target_px, (220, 50, 50), 2, tipLength=0.25)
+            cv2.putText(
+                image,
+                f"last move x={self.last_move_target_xy[0]:+.3f} y={self.last_move_target_xy[1]:+.3f} "
+                f"{self.lateral_direction(float(self.last_move_target_xy[1]))}",
+                (20, size - 44),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.58,
+                (170, 40, 40),
+                2,
+            )
+            cv2.putText(
+                image,
+                f"{math.degrees(self.last_move_target_yaw):+.1f}deg {self.turn_direction(self.last_move_target_yaw)}",
+                (20, size - 18),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.58,
+                (130, 40, 160),
+                2,
+            )
 
         cv2.putText(image, f"stage={stage}", (20, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.72, (20, 20, 20), 2)
         cv2.putText(image, "top-down: x forward, screen right is +y (camera point cloud only)", (20, 58), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (70, 70, 70), 1)
@@ -1182,6 +1226,7 @@ class GrayBoxPlaneController(Node):
         yaw = lateral = distance = None
         target_x = target_y = target_yaw = None
         status = ""
+        was_awaiting_after_motion = self.await_fresh_image_after_motion
 
         if detection is not None:
             contour, *_ = detection
@@ -1195,6 +1240,16 @@ class GrayBoxPlaneController(Node):
                 self.last_cluster_centroid = cluster.centroid.copy()
                 self.last_cluster_stamp_ns = self.get_clock().now().nanoseconds
                 averaged = self.averaged_cluster(cluster)
+                if was_awaiting_after_motion and self.pending_move_target_xy is not None:
+                    self.last_move_start_object_xy = (
+                        None if self.pending_move_start_object_xy is None else self.pending_move_start_object_xy.copy()
+                    )
+                    self.last_move_target_xy = self.pending_move_target_xy.copy()
+                    self.last_move_target_yaw = self.pending_move_target_yaw
+                    self.last_move_end_object_xy = np.array(
+                        [float(averaged.centroid[2]), -float(averaged.centroid[0])],
+                        dtype=np.float64,
+                    )
                 if self.use_motor_move:
                     target_x, target_y, target_yaw = self.update_base_motor_goal(averaged)
                     self.await_fresh_image_after_motion = False
