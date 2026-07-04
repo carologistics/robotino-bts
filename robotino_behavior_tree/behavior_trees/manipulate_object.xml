@@ -29,7 +29,7 @@
         </RetryUntilSuccessful>
         <Switch2 variable="{action}" case_1="pick" case_2="put">
           <GrayBoxAlign action_name="gray_box_align_action"
-                        timeout="20.0"
+                        timeout="45.0"
                         speed="0.1"/>
           <AlwaysSuccess/>
           <AlwaysFailure/>

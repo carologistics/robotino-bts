@@ -89,7 +89,7 @@ class GrayBoxPlaneController(Node):
 
         self.declare_parameter("target_distance_m", 0.22)
         self.declare_parameter("yaw_deadband_deg", 3.0)
-        self.declare_parameter("lateral_deadband_m", 0.005)
+        self.declare_parameter("lateral_deadband_m", 0.010)
         self.declare_parameter("distance_deadband_m", 0.025)
         self.declare_parameter("max_angular_speed", 0.10)
         self.declare_parameter("max_lateral_speed", 0.15)
