@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import math
+from collections import deque
 from dataclasses import dataclass
 from typing import Optional
 
@@ -98,6 +99,8 @@ class GrayBoxPlaneController(Node):
         self.declare_parameter("cloud_tracking_enabled", True)
         self.declare_parameter("use_motor_move", True)
         self.declare_parameter("motor_goal_period_sec", 1.0)
+        self.declare_parameter("motor_result_wait_sec", 0.2)
+        self.declare_parameter("position_average_frames", 5)
         self.declare_parameter("require_fresh_image_after_motion", True)
         self.declare_parameter("track_radius_m", 0.18)
         self.declare_parameter("track_depth_radius_m", 0.25)
@@ -162,6 +165,8 @@ class GrayBoxPlaneController(Node):
         self.cloud_tracking_enabled = bool(self.get_parameter("cloud_tracking_enabled").value)
         self.use_motor_move = bool(self.get_parameter("use_motor_move").value)
         self.motor_goal_period_sec = float(self.get_parameter("motor_goal_period_sec").value)
+        self.motor_result_wait_sec = max(0.0, float(self.get_parameter("motor_result_wait_sec").value))
+        self.position_average_frames = max(1, int(self.get_parameter("position_average_frames").value))
         self.require_fresh_image_after_motion = bool(self.get_parameter("require_fresh_image_after_motion").value)
         self.track_radius_m = float(self.get_parameter("track_radius_m").value)
         self.track_depth_radius_m = float(self.get_parameter("track_depth_radius_m").value)
@@ -193,7 +198,9 @@ class GrayBoxPlaneController(Node):
         self.motor_goal_pending = False
         self.motor_active = False
         self.await_fresh_image_after_motion = False
+        self.motor_wait_until_ns: Optional[int] = None
         self.latest_base_goal: Optional[PoseStamped] = None
+        self.cluster_history = deque(maxlen=self.position_average_frames)
         self.align_goal_handle = None
         self.align_started_ns: Optional[int] = None
         self.align_centered_count = 0
@@ -251,6 +258,7 @@ class GrayBoxPlaneController(Node):
         self.align_goal_handle = goal_handle
         self.align_started_ns = self.get_clock().now().nanoseconds
         self.align_centered_count = 0
+        self.cluster_history.clear()
         self.filtered_yaw = None
         self.filtered_lateral = None
         self.filtered_distance = None
@@ -611,6 +619,32 @@ class GrayBoxPlaneController(Node):
             height_m=max(1e-6, y_max - y_min),
         )
 
+    def averaged_cluster(self, cluster: ClusterStats) -> ClusterStats:
+        self.cluster_history.append(
+            (
+                cluster.centroid.copy(),
+                cluster.left_mean.copy(),
+                cluster.right_mean.copy(),
+                float(cluster.left_right_depth_delta_m),
+                float(cluster.width_m),
+                float(cluster.height_m),
+            )
+        )
+        centroids = np.array([entry[0] for entry in self.cluster_history], dtype=np.float64)
+        left_means = np.array([entry[1] for entry in self.cluster_history], dtype=np.float64)
+        right_means = np.array([entry[2] for entry in self.cluster_history], dtype=np.float64)
+        return ClusterStats(
+            points=cluster.points,
+            centroid=np.mean(centroids, axis=0),
+            left_mean=np.mean(left_means, axis=0),
+            right_mean=np.mean(right_means, axis=0),
+            left_count=cluster.left_count,
+            right_count=cluster.right_count,
+            left_right_depth_delta_m=float(np.mean([entry[3] for entry in self.cluster_history])),
+            width_m=float(np.mean([entry[4] for entry in self.cluster_history])),
+            height_m=float(np.mean([entry[5] for entry in self.cluster_history])),
+        )
+
     def object_cluster_from_previous(self) -> tuple[Optional[ClusterStats], str]:
         if self.last_cluster_centroid is None:
             return None, "no previous cluster"
@@ -833,6 +867,7 @@ class GrayBoxPlaneController(Node):
             or self.motor_goal_pending
             or self.motor_active
             or self.await_fresh_image_after_motion
+            or self.motor_waiting_after_motion()
         ):
             return
         now_ns = self.get_clock().now().nanoseconds
@@ -877,11 +912,25 @@ class GrayBoxPlaneController(Node):
         result = future.result().result
         self.motor_active = False
         self.await_fresh_image_after_motion = self.require_fresh_image_after_motion
+        self.motor_wait_until_ns = (
+            self.get_clock().now().nanoseconds + int(self.motor_result_wait_sec * 1_000_000_000)
+        )
         self.latest_base_goal = None
         self.filtered_yaw = None
         self.filtered_lateral = None
         self.filtered_distance = None
-        self.get_logger().info(f"motor_move result success={result.success}; waiting for fresh image", throttle_duration_sec=1.0)
+        self.get_logger().info(
+            f"motor_move result success={result.success}; waiting for fresh image and {self.motor_result_wait_sec:.3f}s",
+            throttle_duration_sec=1.0,
+        )
+
+    def motor_waiting_after_motion(self) -> bool:
+        if self.motor_wait_until_ns is None:
+            return False
+        if self.get_clock().now().nanoseconds < self.motor_wait_until_ns:
+            return True
+        self.motor_wait_until_ns = None
+        return False
 
     def base_goal_is_zero(self, goal: PoseStamped) -> bool:
         pose = goal.pose
@@ -905,7 +954,13 @@ class GrayBoxPlaneController(Node):
             self.align_latest_front_range = float(cluster.centroid[2])
         if not self.align_goal_active():
             return
-        if centered and not self.motor_active and not self.motor_goal_pending and not self.await_fresh_image_after_motion:
+        if (
+            centered
+            and not self.motor_active
+            and not self.motor_goal_pending
+            and not self.await_fresh_image_after_motion
+            and not self.motor_waiting_after_motion()
+        ):
             self.align_centered_count += 1
         else:
             self.align_centered_count = 0
@@ -942,10 +997,13 @@ class GrayBoxPlaneController(Node):
     def control_from_latest_cloud(self) -> None:
         if not self.controller_active():
             return
-        if self.use_motor_move and (self.motor_active or self.await_fresh_image_after_motion):
+        if self.use_motor_move and (
+            self.motor_active or self.await_fresh_image_after_motion or self.motor_waiting_after_motion()
+        ):
             return
         cluster, status = self.object_cluster_from_previous()
         if cluster is None:
+            self.cluster_history.clear()
             now_ns = self.get_clock().now().nanoseconds
             if (
                 self.motion_enabled()
@@ -956,7 +1014,8 @@ class GrayBoxPlaneController(Node):
             self.get_logger().warn(f"cloud tracking lost: {status}", throttle_duration_sec=1.0)
             return
 
-        cmd, stage, yaw, lateral, distance = self.publish_cluster_command(cluster, status)
+        averaged = self.averaged_cluster(cluster)
+        cmd, stage, yaw, lateral, distance = self.publish_cluster_command(averaged, status)
         centered = stage == "done"
         self.update_align_progress(centered, cluster, stage, yaw, lateral, distance)
         if self.latest_image is not None and self.latest_object_mask is not None:
@@ -1051,14 +1110,15 @@ class GrayBoxPlaneController(Node):
             if cluster is not None:
                 self.last_cluster_centroid = cluster.centroid.copy()
                 self.last_cluster_stamp_ns = self.get_clock().now().nanoseconds
+                averaged = self.averaged_cluster(cluster)
                 if self.use_motor_move:
-                    target_x, target_y, target_yaw = self.update_base_motor_goal(cluster)
+                    target_x, target_y, target_yaw = self.update_base_motor_goal(averaged)
                     self.await_fresh_image_after_motion = False
                     self.maybe_send_motor_goal()
                 if self.cloud_tracking_enabled:
-                    yaw = cluster.left_right_depth_delta_m
-                    lateral = -float(cluster.centroid[0])
-                    distance = float(cluster.centroid[2]) - self.target_distance_m
+                    yaw = averaged.left_right_depth_delta_m
+                    lateral = -float(averaged.centroid[0])
+                    distance = float(averaged.centroid[2]) - self.target_distance_m
                     centered = (
                         target_x is not None
                         and abs(target_x) < 1e-6
@@ -1067,10 +1127,13 @@ class GrayBoxPlaneController(Node):
                     )
                     stage = "done" if centered else "seed"
                 else:
-                    cmd, stage, yaw, lateral, distance = self.command_from_cluster(cluster)
+                    cmd, stage, yaw, lateral, distance = self.command_from_cluster(averaged)
+                cluster = averaged
             else:
+                self.cluster_history.clear()
                 stage = "cluster"
         else:
+            self.cluster_history.clear()
             object_mask = mask
             self.latest_detection = None
             self.latest_object_mask = object_mask

@@ -39,7 +39,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "gray_box_show_gui",
-                default_value="false",
+                default_value="true",
                 description="Show the OpenCV debug window for gray box alignment.",
             ),
             DeclareLaunchArgument(
