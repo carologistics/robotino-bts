@@ -1107,7 +1107,7 @@ class GrayBoxPlaneController(Node):
         image = np.full((size, size, 3), 245, dtype=np.uint8)
 
         def to_px(x_forward: float, y_left: float) -> tuple[int, int]:
-            px = origin + np.array([y_left * scale, -x_forward * scale], dtype=np.float64)
+            px = origin + np.array([-y_left * scale, -x_forward * scale], dtype=np.float64)
             return int(np.clip(px[0], 0, size - 1)), int(np.clip(px[1], 0, size - 1))
 
         for meters in (0.1, 0.2, 0.3, 0.4, 0.5):
@@ -1158,7 +1158,7 @@ class GrayBoxPlaneController(Node):
             cv2.putText(image, yaw_text, (20, size - 18), cv2.FONT_HERSHEY_SIMPLEX, 0.58, (130, 40, 160), 2)
 
         cv2.putText(image, f"stage={stage}", (20, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.72, (20, 20, 20), 2)
-        cv2.putText(image, "top-down: x forward, y left (camera point cloud only)", (20, 58), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (70, 70, 70), 1)
+        cv2.putText(image, "top-down: x forward, screen right is +y (camera point cloud only)", (20, 58), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (70, 70, 70), 1)
         return image
 
     def on_image(self, msg: Image) -> None:
