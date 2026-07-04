@@ -829,9 +829,13 @@ class GrayBoxPlaneController(Node):
         yaw = 0.0
         if abs(lateral_error) >= self.lateral_deadband_m:
             target_xy[1] = lateral_error if self.invert_lateral else -lateral_error
-        elif abs(yaw_error) >= self.yaw_deadband_rad:
+        if abs(yaw_error) >= self.yaw_deadband_rad:
             yaw = -yaw_error if self.invert_angular else yaw_error
-        elif abs(forward_error) >= self.distance_deadband_m:
+        if (
+            abs(lateral_error) < self.lateral_deadband_m
+            and abs(yaw_error) < self.yaw_deadband_rad
+            and abs(forward_error) >= self.distance_deadband_m
+        ):
             target_xy[0] = forward_error
 
         goal_pose = PoseStamped()
