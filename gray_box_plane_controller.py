@@ -13,14 +13,13 @@ import numpy as np
 import rclpy
 from cv_bridge import CvBridge
 from builtin_interfaces.msg import Time
-from geometry_msgs.msg import PoseStamped, TransformStamped, Twist
+from geometry_msgs.msg import PoseStamped, Twist
 from motor_move_msgs.action import MotorMove, MoveToShelf
 from rclpy.action import ActionClient, ActionServer, CancelResponse, GoalResponse
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image, PointCloud2, PointField
-from tf2_ros import TransformBroadcaster
 
 
 @dataclass
@@ -58,8 +57,10 @@ class GrayBoxPlaneController(Node):
         self.declare_parameter("base_frame", "robotinobase1/base_link")
         self.declare_parameter("target_frame", "robotinobase1/gray_box_motor_target")
         self.declare_parameter("output_path", "/tmp/gray_box_plane_controller.png")
+        self.declare_parameter("topdown_output_path", "/tmp/gray_box_plane_topdown.png")
         self.declare_parameter("show_gui", True)
         self.declare_parameter("window_name", "gray box plane controller")
+        self.declare_parameter("topdown_window_name", "gray box top down")
 
         self.declare_parameter("enable_motion", False)
         self.declare_parameter("max_image_age_sec", 1.00)
@@ -124,8 +125,10 @@ class GrayBoxPlaneController(Node):
         self.base_frame = str(self.get_parameter("base_frame").value)
         self.target_frame = str(self.get_parameter("target_frame").value)
         self.output_path = str(self.get_parameter("output_path").value)
+        self.topdown_output_path = str(self.get_parameter("topdown_output_path").value)
         self.show_gui = bool(self.get_parameter("show_gui").value)
         self.window_name = str(self.get_parameter("window_name").value)
+        self.topdown_window_name = str(self.get_parameter("topdown_window_name").value)
 
         self.enable_motion = bool(self.get_parameter("enable_motion").value)
         self.max_image_age_sec = float(self.get_parameter("max_image_age_sec").value)
@@ -200,6 +203,9 @@ class GrayBoxPlaneController(Node):
         self.await_fresh_image_after_motion = False
         self.motor_wait_until_ns: Optional[int] = None
         self.latest_base_goal: Optional[PoseStamped] = None
+        self.latest_topdown_object_xy: Optional[np.ndarray] = None
+        self.latest_topdown_target_xy: Optional[np.ndarray] = None
+        self.latest_topdown_target_yaw = 0.0
         self.cluster_history = deque(maxlen=self.position_average_frames)
         self.align_goal_handle = None
         self.align_started_ns: Optional[int] = None
@@ -208,7 +214,6 @@ class GrayBoxPlaneController(Node):
         self.frame_count = 0
 
         self.cmd_pub = self.create_publisher(Twist, self.cmd_vel_topic, 10)
-        self.tf_broadcaster = TransformBroadcaster(self)
         self.action_client = ActionClient(self, MotorMove, self.motor_action)
         self.align_action_server = ActionServer(
             self,
@@ -225,6 +230,8 @@ class GrayBoxPlaneController(Node):
         if self.show_gui:
             cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL)
             cv2.resizeWindow(self.window_name, 960, 540)
+            cv2.namedWindow(self.topdown_window_name, cv2.WINDOW_NORMAL)
+            cv2.resizeWindow(self.topdown_window_name, 640, 640)
 
         self.get_logger().info(f"image: {self.image_topic}")
         self.get_logger().info(f"pointcloud: {self.pointcloud_topic}")
@@ -313,6 +320,7 @@ class GrayBoxPlaneController(Node):
     def close(self) -> None:
         if self.show_gui:
             cv2.destroyWindow(self.window_name)
+            cv2.destroyWindow(self.topdown_window_name)
 
     def stop(self) -> None:
         if rclpy.ok():
@@ -812,6 +820,20 @@ class GrayBoxPlaneController(Node):
     def yaw_to_quaternion(self, yaw: float) -> tuple[float, float]:
         return math.sin(0.5 * yaw), math.cos(0.5 * yaw)
 
+    def turn_direction(self, yaw: float) -> str:
+        if yaw < 0.0:
+            return "turn_left"
+        if yaw > 0.0:
+            return "turn_right"
+        return "turn_none"
+
+    def lateral_direction(self, y: float) -> str:
+        if y > 0.0:
+            return "move_left"
+        if y < 0.0:
+            return "move_right"
+        return "move_none"
+
     def update_base_motor_goal(self, cluster: ClusterStats) -> tuple[float, float, float]:
         object_xy = np.array([float(cluster.centroid[2]), -float(cluster.centroid[0])], dtype=np.float64)
         lateral_error = float(object_xy[1])
@@ -827,6 +849,9 @@ class GrayBoxPlaneController(Node):
             target_xy[1] = lateral_error if self.invert_lateral else -lateral_error
         if abs(yaw_error) >= self.yaw_deadband_rad:
             yaw = -yaw_error if self.invert_angular else yaw_error
+        self.latest_topdown_object_xy = object_xy.copy()
+        self.latest_topdown_target_xy = target_xy.copy()
+        self.latest_topdown_target_yaw = yaw
 
         goal_pose = PoseStamped()
         goal_pose.header.frame_id = self.base_frame
@@ -839,19 +864,6 @@ class GrayBoxPlaneController(Node):
         goal_pose.pose.orientation.w = qw
         self.latest_base_goal = goal_pose
 
-        # Keep publishing a TF marker for visualization/debug; motor_move receives
-        # the relative base_link pose directly.
-        transform = TransformStamped()
-        transform.header.stamp = self.get_clock().now().to_msg()
-        transform.header.frame_id = self.base_frame
-        transform.child_frame_id = self.target_frame
-        transform.transform.translation.x = float(target_xy[0])
-        transform.transform.translation.y = float(target_xy[1])
-        transform.transform.translation.z = 0.0
-        transform.transform.rotation.z = qz
-        transform.transform.rotation.w = qw
-        if rclpy.ok():
-            self.tf_broadcaster.sendTransform(transform)
         return float(target_xy[0]), float(target_xy[1]), yaw
 
     def maybe_send_motor_goal(self) -> None:
@@ -885,10 +897,9 @@ class GrayBoxPlaneController(Node):
         self.last_motor_goal_time_ns = now_ns
         pose = self.latest_base_goal.pose
         yaw = math.atan2(2.0 * pose.orientation.w * pose.orientation.z, 1.0 - 2.0 * pose.orientation.z * pose.orientation.z)
-        turn_direction = "turn_left" if yaw > 0.0 else "turn_right" if yaw < 0.0 else "turn_none"
         self.get_logger().info(
             f"sending motor_move base delta x={pose.position.x:+.3f}m y={pose.position.y:+.3f}m "
-            f"yaw={math.degrees(yaw):+.1f}deg {turn_direction}"
+            f"{self.lateral_direction(pose.position.y)} yaw={math.degrees(yaw):+.1f}deg {self.turn_direction(yaw)}"
         )
         future = self.action_client.send_goal_async(action_goal)
         future.add_done_callback(self.on_motor_goal_response)
@@ -984,12 +995,12 @@ class GrayBoxPlaneController(Node):
             self.cmd_pub.publish(Twist())
         if self.frame_count % 5 == 0:
             target_text = "" if target_x is None else f" base_delta=({target_x:.3f},{target_y:.3f},{math.degrees(target_yaw):+.1f}deg)"
-            turn_text = "" if target_yaw is None else (
-                " turn_left" if target_yaw > 0.0 else " turn_right" if target_yaw < 0.0 else " turn_none"
+            direction_text = "" if target_yaw is None else (
+                f" {self.lateral_direction(target_y or 0.0)} {self.turn_direction(target_yaw)}"
             )
             self.get_logger().info(
                 f"stage={stage} lr_dz={yaw} lat={lateral} front_err={distance} {status} "
-                f"cmd=({cmd.linear.x:+.2f},{cmd.linear.y:+.2f},{cmd.angular.z:+.2f}){target_text}{turn_text}"
+                f"cmd=({cmd.linear.x:+.2f},{cmd.linear.y:+.2f},{cmd.angular.z:+.2f}){target_text}{direction_text}"
             )
         return cmd, stage, yaw, lateral, distance
 
@@ -1076,6 +1087,74 @@ class GrayBoxPlaneController(Node):
         cv2.putText(debug, label, (12, 32), cv2.FONT_HERSHEY_SIMPLEX, 0.72, (255, 255, 255), 2, cv2.LINE_AA)
         return debug
 
+    def draw_topdown_debug(
+        self,
+        cluster: Optional[ClusterStats],
+        target_x: Optional[float],
+        target_y: Optional[float],
+        target_yaw: Optional[float],
+        stage: str,
+    ) -> np.ndarray:
+        size = 640
+        scale = 650.0
+        origin = np.array([size // 2, size - 90], dtype=np.float64)
+        image = np.full((size, size, 3), 245, dtype=np.uint8)
+
+        def to_px(x_forward: float, y_left: float) -> tuple[int, int]:
+            px = origin + np.array([y_left * scale, -x_forward * scale], dtype=np.float64)
+            return int(np.clip(px[0], 0, size - 1)), int(np.clip(px[1], 0, size - 1))
+
+        for meters in (0.1, 0.2, 0.3, 0.4, 0.5):
+            y = to_px(meters, 0.0)[1]
+            cv2.line(image, (20, y), (size - 20, y), (225, 225, 225), 1)
+            cv2.putText(image, f"{meters:.1f}m", (24, y - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (120, 120, 120), 1)
+        for lateral in (-0.3, -0.2, -0.1, 0.1, 0.2, 0.3):
+            x = to_px(0.0, lateral)[0]
+            cv2.line(image, (x, 35), (x, size - 35), (230, 230, 230), 1)
+
+        cv2.line(image, to_px(0.0, 0.0), to_px(0.55, 0.0), (180, 180, 180), 2)
+        cv2.line(image, to_px(self.target_distance_m, -0.35), to_px(self.target_distance_m, 0.35), (80, 180, 80), 2)
+        cv2.circle(image, to_px(0.0, 0.0), 12, (30, 30, 30), -1)
+        cv2.putText(image, "robot", (int(origin[0]) + 16, int(origin[1]) + 5), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (30, 30, 30), 2)
+
+        object_xy = self.latest_topdown_object_xy
+        if object_xy is None and cluster is not None:
+            object_xy = np.array([float(cluster.centroid[2]), -float(cluster.centroid[0])], dtype=np.float64)
+        if object_xy is not None:
+            object_px = to_px(float(object_xy[0]), float(object_xy[1]))
+            cv2.circle(image, object_px, 14, (0, 120, 255), -1)
+            cv2.circle(image, object_px, 20, (0, 120, 255), 2)
+            cv2.putText(
+                image,
+                f"box x={object_xy[0]:+.3f} y={object_xy[1]:+.3f}",
+                (object_px[0] + 14, max(25, object_px[1] - 12)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.52,
+                (0, 80, 180),
+                2,
+            )
+
+        if target_x is not None and target_y is not None and target_yaw is not None:
+            target_px = to_px(float(target_x), float(target_y))
+            cv2.arrowedLine(image, to_px(0.0, 0.0), target_px, (220, 50, 50), 3, tipLength=0.25)
+            yaw_radius = 54
+            yaw_text = f"{math.degrees(target_yaw):+.1f}deg {self.turn_direction(target_yaw)}"
+            cv2.ellipse(image, to_px(0.0, 0.0), (yaw_radius, yaw_radius), 0, 0, math.degrees(target_yaw), (150, 40, 200), 2)
+            cv2.putText(
+                image,
+                f"move x={target_x:+.3f} y={target_y:+.3f} {self.lateral_direction(target_y)}",
+                (20, size - 44),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.58,
+                (170, 40, 40),
+                2,
+            )
+            cv2.putText(image, yaw_text, (20, size - 18), cv2.FONT_HERSHEY_SIMPLEX, 0.58, (130, 40, 160), 2)
+
+        cv2.putText(image, f"stage={stage}", (20, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.72, (20, 20, 20), 2)
+        cv2.putText(image, "top-down: x forward, y left (camera point cloud only)", (20, 58), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (70, 70, 70), 1)
+        return image
+
     def on_image(self, msg: Image) -> None:
         if not self.controller_active():
             return
@@ -1152,21 +1231,24 @@ class GrayBoxPlaneController(Node):
             self.cmd_pub.publish(Twist())
 
         debug = self.draw_debug(image, detection, object_mask, plane, stage, cmd, yaw, lateral, distance, cluster, depth_mask)
+        topdown = self.draw_topdown_debug(cluster, target_x, target_y, target_yaw, stage)
         self.update_align_progress(stage == "done", cluster, stage, yaw, lateral, distance)
         self.frame_count += 1
         cv2.imwrite(self.output_path, debug)
+        cv2.imwrite(self.topdown_output_path, topdown)
         if self.frame_count % 5 == 0:
             target_text = "" if target_x is None else f" base_delta=({target_x:.3f},{target_y:.3f},{math.degrees(target_yaw):+.1f}deg)"
-            turn_text = "" if target_yaw is None else (
-                " turn_left" if target_yaw > 0.0 else " turn_right" if target_yaw < 0.0 else " turn_none"
+            direction_text = "" if target_yaw is None else (
+                f" {self.lateral_direction(target_y or 0.0)} {self.turn_direction(target_yaw)}"
             )
             self.get_logger().info(
                 f"stage={stage} lr_dz={yaw} lat={lateral} front_err={distance} {status} "
-                f"cmd=({cmd.linear.x:+.2f},{cmd.linear.y:+.2f},{cmd.angular.z:+.2f}){target_text}{turn_text}"
+                f"cmd=({cmd.linear.x:+.2f},{cmd.linear.y:+.2f},{cmd.angular.z:+.2f}){target_text}{direction_text}"
             )
 
         if self.show_gui:
             cv2.imshow(self.window_name, debug)
+            cv2.imshow(self.topdown_window_name, topdown)
             key = cv2.waitKey(1) & 0xFF
             if key in (ord("q"), 27):
                 rclpy.shutdown()

@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+namespace="${1:-robotinobase1}"
+node="/${namespace}/gray_box_plane_controller"
+
+ros2 launch robotino_behavior_tree server.launch.py \
+  namespace:="${namespace}" \
+  gray_box_show_gui:=true \
+  gray_box_enable_motion:=false \
+  gray_box_use_motor_move:=true &
+
+launch_pid=$!
+trap 'kill "${launch_pid}" 2>/dev/null || true' EXIT
+
+for _ in $(seq 1 80); do
+  if ros2 node list | grep -qx "${node}"; then
+    break
+  fi
+  sleep 0.25
+done
+
+ros2 param set "${node}" run_only_during_action false
+ros2 param set "${node}" action_enables_motion false
+ros2 param set "${node}" enable_motion false
+
+echo "Gray box debug is running without motion."
+echo "Windows: 'gray box plane controller' and 'gray box top down'."
+echo "Top-down image: /tmp/gray_box_plane_topdown.png"
+
+wait "${launch_pid}"
