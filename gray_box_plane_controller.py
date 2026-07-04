@@ -95,6 +95,7 @@ class GrayBoxPlaneController(Node):
         self.declare_parameter("max_angular_speed", 0.035)
         self.declare_parameter("max_lateral_speed", 0.15)
         self.declare_parameter("lateral_acceleration", 0.5)
+        self.declare_parameter("lateral_correction_fraction", 0.5)
         self.declare_parameter("max_forward_speed", 0.10)
         self.declare_parameter("side_band_fraction", 0.20)
         self.declare_parameter("min_side_points", 8)
@@ -164,6 +165,7 @@ class GrayBoxPlaneController(Node):
         self.max_angular_speed = abs(float(self.get_parameter("max_angular_speed").value))
         self.max_lateral_speed = abs(float(self.get_parameter("max_lateral_speed").value))
         self.lateral_acceleration = abs(float(self.get_parameter("lateral_acceleration").value))
+        self.lateral_correction_fraction = float(np.clip(float(self.get_parameter("lateral_correction_fraction").value), 0.0, 1.0))
         self.max_forward_speed = abs(float(self.get_parameter("max_forward_speed").value))
         self.side_band_fraction = float(self.get_parameter("side_band_fraction").value)
         self.min_side_points = int(self.get_parameter("min_side_points").value)
@@ -829,7 +831,7 @@ class GrayBoxPlaneController(Node):
         lateral_active = abs(lateral) > self.lateral_deadband_m
         yaw_active = abs(yaw) > self.yaw_depth_deadband_m
         if lateral_active:
-            requested_lateral = lateral if self.invert_lateral else -lateral
+            requested_lateral = (lateral if self.invert_lateral else -lateral) * self.lateral_correction_fraction
             cmd.linear.y = self.profiled_lateral_speed(requested_lateral)
         else:
             self.lateral_speed = 0.0
