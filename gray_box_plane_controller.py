@@ -89,7 +89,7 @@ class GrayBoxPlaneController(Node):
 
         self.declare_parameter("target_distance_m", 0.22)
         self.declare_parameter("yaw_deadband_deg", 3.0)
-        self.declare_parameter("lateral_deadband_m", 0.010)
+        self.declare_parameter("lateral_deadband_m", 0.005)
         self.declare_parameter("distance_deadband_m", 0.025)
         self.declare_parameter("max_angular_speed", 0.10)
         self.declare_parameter("max_lateral_speed", 0.15)
@@ -805,9 +805,6 @@ class GrayBoxPlaneController(Node):
             cmd.linear.y = float(np.clip(self.lateral_kp * lateral, -self.max_lateral_speed, self.max_lateral_speed))
             if self.invert_lateral:
                 cmd.linear.y *= -1.0
-        elif distance > self.distance_deadband_m:
-            stage = "forward"
-            cmd.linear.x = float(np.clip(self.forward_kp * distance, 0.0, self.max_forward_speed))
         else:
             stage = "done"
         return cmd, stage, yaw, lateral, distance
@@ -817,7 +814,6 @@ class GrayBoxPlaneController(Node):
 
     def update_base_motor_goal(self, cluster: ClusterStats) -> tuple[float, float, float]:
         object_xy = np.array([float(cluster.centroid[2]), -float(cluster.centroid[0])], dtype=np.float64)
-        forward_error = float(object_xy[0] - self.target_distance_m)
         lateral_error = float(object_xy[1])
 
         if abs(cluster.left_right_depth_delta_m) < self.yaw_depth_deadband_m:
@@ -831,12 +827,6 @@ class GrayBoxPlaneController(Node):
             target_xy[1] = lateral_error if self.invert_lateral else -lateral_error
         if abs(yaw_error) >= self.yaw_deadband_rad:
             yaw = -yaw_error if self.invert_angular else yaw_error
-        if (
-            abs(lateral_error) < self.lateral_deadband_m
-            and abs(yaw_error) < self.yaw_deadband_rad
-            and abs(forward_error) >= self.distance_deadband_m
-        ):
-            target_xy[0] = forward_error
 
         goal_pose = PoseStamped()
         goal_pose.header.frame_id = self.base_frame
@@ -895,8 +885,10 @@ class GrayBoxPlaneController(Node):
         self.last_motor_goal_time_ns = now_ns
         pose = self.latest_base_goal.pose
         yaw = math.atan2(2.0 * pose.orientation.w * pose.orientation.z, 1.0 - 2.0 * pose.orientation.z * pose.orientation.z)
+        turn_direction = "turn_left" if yaw > 0.0 else "turn_right" if yaw < 0.0 else "turn_none"
         self.get_logger().info(
-            f"sending motor_move base delta x={pose.position.x:+.3f}m y={pose.position.y:+.3f}m yaw={math.degrees(yaw):+.1f}deg"
+            f"sending motor_move base delta x={pose.position.x:+.3f}m y={pose.position.y:+.3f}m "
+            f"yaw={math.degrees(yaw):+.1f}deg {turn_direction}"
         )
         future = self.action_client.send_goal_async(action_goal)
         future.add_done_callback(self.on_motor_goal_response)
@@ -992,9 +984,12 @@ class GrayBoxPlaneController(Node):
             self.cmd_pub.publish(Twist())
         if self.frame_count % 5 == 0:
             target_text = "" if target_x is None else f" base_delta=({target_x:.3f},{target_y:.3f},{math.degrees(target_yaw):+.1f}deg)"
+            turn_text = "" if target_yaw is None else (
+                " turn_left" if target_yaw > 0.0 else " turn_right" if target_yaw < 0.0 else " turn_none"
+            )
             self.get_logger().info(
                 f"stage={stage} lr_dz={yaw} lat={lateral} front_err={distance} {status} "
-                f"cmd=({cmd.linear.x:+.2f},{cmd.linear.y:+.2f},{cmd.angular.z:+.2f}){target_text}"
+                f"cmd=({cmd.linear.x:+.2f},{cmd.linear.y:+.2f},{cmd.angular.z:+.2f}){target_text}{turn_text}"
             )
         return cmd, stage, yaw, lateral, distance
 
@@ -1162,9 +1157,12 @@ class GrayBoxPlaneController(Node):
         cv2.imwrite(self.output_path, debug)
         if self.frame_count % 5 == 0:
             target_text = "" if target_x is None else f" base_delta=({target_x:.3f},{target_y:.3f},{math.degrees(target_yaw):+.1f}deg)"
+            turn_text = "" if target_yaw is None else (
+                " turn_left" if target_yaw > 0.0 else " turn_right" if target_yaw < 0.0 else " turn_none"
+            )
             self.get_logger().info(
                 f"stage={stage} lr_dz={yaw} lat={lateral} front_err={distance} {status} "
-                f"cmd=({cmd.linear.x:+.2f},{cmd.linear.y:+.2f},{cmd.angular.z:+.2f}){target_text}"
+                f"cmd=({cmd.linear.x:+.2f},{cmd.linear.y:+.2f},{cmd.angular.z:+.2f}){target_text}{turn_text}"
             )
 
         if self.show_gui:

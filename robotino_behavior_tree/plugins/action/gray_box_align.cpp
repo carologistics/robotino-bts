@@ -37,7 +37,7 @@ public:
   static BT::PortsList providedPorts()
   {
     return providedBasicPorts({
-        BT::InputPort<double>("timeout", 45.0, "Maximum gray-box alignment time in seconds"),
+        BT::InputPort<double>("timeout", 20.0, "Maximum gray-box alignment time in seconds"),
         BT::InputPort<double>("speed", 0.1, "Reserved for compatibility with MoveToShelf action goals"),
         BT::OutputPort<bool>("success", "Action-level success flag"),
         BT::OutputPort<std::string>("message", "Result message from the action server"),
@@ -48,7 +48,7 @@ public:
 
   bool setGoal(Goal& goal) override
   {
-    goal.timeout = static_cast<float>(getInput<double>("timeout").value_or(45.0));
+    goal.timeout = static_cast<float>(getInput<double>("timeout").value_or(20.0));
     goal.speed = static_cast<float>(getInput<double>("speed").value_or(0.1));
 
     RCLCPP_INFO(logger(), "%s sending goal: timeout=%.3f", name().c_str(), goal.timeout);
