@@ -97,8 +97,8 @@ class GrayBoxPlaneController(Node):
         self.declare_parameter("max_forward_speed", 0.10)
         self.declare_parameter("side_band_fraction", 0.20)
         self.declare_parameter("min_side_points", 8)
-        self.declare_parameter("cloud_tracking_enabled", True)
-        self.declare_parameter("use_motor_move", True)
+        self.declare_parameter("cloud_tracking_enabled", False)
+        self.declare_parameter("use_motor_move", False)
         self.declare_parameter("motor_goal_period_sec", 1.0)
         self.declare_parameter("motor_result_wait_sec", 0.2)
         self.declare_parameter("position_average_frames", 5)
@@ -807,27 +807,24 @@ class GrayBoxPlaneController(Node):
         yaw_delta = cluster.left_right_depth_delta_m
         lateral_error = -float(cluster.centroid[0])
         distance_error = float(cluster.centroid[2]) - self.target_distance_m
-
-        self.filtered_yaw = self.filtered(self.filtered_yaw, yaw_delta)
-        self.filtered_lateral = self.filtered(self.filtered_lateral, lateral_error)
-        self.filtered_distance = self.filtered(self.filtered_distance, distance_error)
-        yaw = self.filtered_yaw
-        lateral = self.filtered_lateral
-        distance = self.filtered_distance
+        yaw = yaw_delta
+        lateral = lateral_error
+        distance = distance_error
 
         cmd = Twist()
         if abs(yaw) > self.yaw_depth_deadband_m:
-            stage = "yaw_lr_depth"
-            cmd.angular.z = float(np.clip(self.yaw_depth_kp * yaw, -self.max_angular_speed, self.max_angular_speed))
-            if self.invert_angular:
-                cmd.angular.z *= -1.0
+            stage = "orient_pointcloud"
+            # Positive angular.z turns left. If the left side of the box is closer
+            # than the right side, yaw_delta is negative and this commands left.
+            cmd.angular.z = float(np.clip(-self.yaw_depth_kp * yaw, -self.max_angular_speed, self.max_angular_speed))
         elif abs(lateral) > self.lateral_deadband_m:
             stage = "lateral"
-            cmd.linear.y = float(np.clip(self.lateral_kp * lateral, -self.max_lateral_speed, self.max_lateral_speed))
-            if self.invert_lateral:
-                cmd.linear.y *= -1.0
+            cmd.linear.y = float(np.clip(lateral if self.invert_lateral else -lateral, -self.max_lateral_speed, self.max_lateral_speed))
         else:
             stage = "done"
+        self.latest_topdown_object_xy = np.array([float(cluster.centroid[2]), -float(cluster.centroid[0])], dtype=np.float64)
+        self.latest_topdown_target_xy = np.array([0.0, float(cmd.linear.y)], dtype=np.float64)
+        self.latest_topdown_target_yaw = float(cmd.angular.z)
         return cmd, stage, yaw, lateral, distance
 
     def yaw_to_quaternion(self, yaw: float) -> tuple[float, float]:
@@ -846,6 +843,15 @@ class GrayBoxPlaneController(Node):
         if y < 0.0:
             return "move_right"
         return "move_none"
+
+    def depth_balance(self, left_right_depth_delta_m: Optional[float]) -> str:
+        if left_right_depth_delta_m is None:
+            return "depth_unknown"
+        if left_right_depth_delta_m < -self.yaw_depth_deadband_m:
+            return "left_closer"
+        if left_right_depth_delta_m > self.yaw_depth_deadband_m:
+            return "right_closer"
+        return "depth_equal"
 
     def update_base_motor_goal(self, cluster: ClusterStats) -> tuple[float, float, float]:
         object_xy = np.array([float(cluster.centroid[2]), -float(cluster.centroid[0])], dtype=np.float64)
@@ -1011,12 +1017,17 @@ class GrayBoxPlaneController(Node):
         elif rclpy.ok():
             self.cmd_pub.publish(Twist())
         if self.frame_count % 5 == 0:
-            target_text = "" if target_x is None else f" base_delta=({target_x:.3f},{target_y:.3f},{math.degrees(target_yaw):+.1f}deg)"
+            if target_x is None:
+                target_text = ""
+            elif self.use_motor_move:
+                target_text = f" base_delta=({target_x:.3f},{target_y:.3f},{math.degrees(target_yaw):+.1f}deg)"
+            else:
+                target_text = f" cmd_target=({target_x:.3f},{target_y:.3f}, angular.z={target_yaw:+.2f})"
             direction_text = "" if target_yaw is None else (
                 f" {self.lateral_direction(target_y or 0.0)} {self.turn_direction(target_yaw)}"
             )
             self.get_logger().info(
-                f"stage={stage} lr_dz={yaw} lat={lateral} front_err={distance} {status} "
+                f"stage={stage} {self.depth_balance(yaw)} lr_dz={yaw} lat={lateral} front_err={distance} {status} "
                 f"cmd=({cmd.linear.x:+.2f},{cmd.linear.y:+.2f},{cmd.angular.z:+.2f}){target_text}{direction_text}"
             )
         return cmd, stage, yaw, lateral, distance
@@ -1166,11 +1177,11 @@ class GrayBoxPlaneController(Node):
             target_px = to_px(float(target_x), float(target_y))
             cv2.arrowedLine(image, to_px(0.0, 0.0), target_px, (220, 50, 50), 3, tipLength=0.25)
             yaw_radius = 54
-            yaw_text = f"{math.degrees(target_yaw):+.1f}deg {self.turn_direction(target_yaw)}"
-            cv2.ellipse(image, to_px(0.0, 0.0), (yaw_radius, yaw_radius), 0, 0, math.degrees(target_yaw), (150, 40, 200), 2)
+            yaw_text = f"angular.z={target_yaw:+.2f} {self.turn_direction(target_yaw)}"
+            cv2.ellipse(image, to_px(0.0, 0.0), (yaw_radius, yaw_radius), 0, 0, float(np.clip(target_yaw * 180.0, -90.0, 90.0)), (150, 40, 200), 2)
             cv2.putText(
                 image,
-                f"move x={target_x:+.3f} y={target_y:+.3f} {self.lateral_direction(target_y)}",
+                f"cmd_vel x={target_x:+.3f} y={target_y:+.3f} {self.lateral_direction(target_y)}",
                 (20, size - 44),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.58,
@@ -1183,7 +1194,7 @@ class GrayBoxPlaneController(Node):
             cv2.arrowedLine(image, to_px(0.0, 0.0), target_px, (220, 50, 50), 2, tipLength=0.25)
             cv2.putText(
                 image,
-                f"last move x={self.last_move_target_xy[0]:+.3f} y={self.last_move_target_xy[1]:+.3f} "
+                f"last cmd x={self.last_move_target_xy[0]:+.3f} y={self.last_move_target_xy[1]:+.3f} "
                 f"{self.lateral_direction(float(self.last_move_target_xy[1]))}",
                 (20, size - 44),
                 cv2.FONT_HERSHEY_SIMPLEX,
@@ -1193,7 +1204,7 @@ class GrayBoxPlaneController(Node):
             )
             cv2.putText(
                 image,
-                f"{math.degrees(self.last_move_target_yaw):+.1f}deg {self.turn_direction(self.last_move_target_yaw)}",
+                f"angular.z={self.last_move_target_yaw:+.2f} {self.turn_direction(self.last_move_target_yaw)}",
                 (20, size - 18),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.58,
@@ -1254,7 +1265,18 @@ class GrayBoxPlaneController(Node):
                     target_x, target_y, target_yaw = self.update_base_motor_goal(averaged)
                     self.await_fresh_image_after_motion = False
                     self.maybe_send_motor_goal()
-                if self.cloud_tracking_enabled:
+                else:
+                    previous_object_xy = None if self.latest_topdown_object_xy is None else self.latest_topdown_object_xy.copy()
+                    cmd, stage, yaw, lateral, distance = self.command_from_cluster(averaged)
+                    target_x = 0.0
+                    target_y = float(cmd.linear.y)
+                    target_yaw = float(cmd.angular.z)
+                    if previous_object_xy is not None:
+                        self.last_move_start_object_xy = previous_object_xy
+                        self.last_move_target_xy = np.array([target_x, target_y], dtype=np.float64)
+                        self.last_move_target_yaw = target_yaw
+                        self.last_move_end_object_xy = self.latest_topdown_object_xy.copy()
+                if self.cloud_tracking_enabled and self.use_motor_move:
                     yaw = averaged.left_right_depth_delta_m
                     lateral = -float(averaged.centroid[0])
                     distance = float(averaged.centroid[2]) - self.target_distance_m
@@ -1265,8 +1287,6 @@ class GrayBoxPlaneController(Node):
                         and abs(target_yaw or 0.0) < 1e-6
                     )
                     stage = "done" if centered else "seed"
-                else:
-                    cmd, stage, yaw, lateral, distance = self.command_from_cluster(averaged)
                 cluster = averaged
             else:
                 self.cluster_history.clear()
@@ -1283,9 +1303,6 @@ class GrayBoxPlaneController(Node):
         if self.use_motor_move:
             if rclpy.ok():
                 self.cmd_pub.publish(Twist())
-        elif self.cloud_tracking_enabled:
-            if rclpy.ok() and not self.motion_enabled():
-                self.cmd_pub.publish(Twist())
         elif self.motion_enabled() and rclpy.ok():
             self.cmd_pub.publish(cmd)
         elif rclpy.ok():
@@ -1298,12 +1315,17 @@ class GrayBoxPlaneController(Node):
         cv2.imwrite(self.output_path, debug)
         cv2.imwrite(self.topdown_output_path, topdown)
         if self.frame_count % 5 == 0:
-            target_text = "" if target_x is None else f" base_delta=({target_x:.3f},{target_y:.3f},{math.degrees(target_yaw):+.1f}deg)"
+            if target_x is None:
+                target_text = ""
+            elif self.use_motor_move:
+                target_text = f" base_delta=({target_x:.3f},{target_y:.3f},{math.degrees(target_yaw):+.1f}deg)"
+            else:
+                target_text = f" cmd_target=({target_x:.3f},{target_y:.3f}, angular.z={target_yaw:+.2f})"
             direction_text = "" if target_yaw is None else (
                 f" {self.lateral_direction(target_y or 0.0)} {self.turn_direction(target_yaw)}"
             )
             self.get_logger().info(
-                f"stage={stage} lr_dz={yaw} lat={lateral} front_err={distance} {status} "
+                f"stage={stage} {self.depth_balance(yaw)} lr_dz={yaw} lat={lateral} front_err={distance} {status} "
                 f"cmd=({cmd.linear.x:+.2f},{cmd.linear.y:+.2f},{cmd.angular.z:+.2f}){target_text}{direction_text}"
             )
 
