@@ -827,9 +827,9 @@ class GrayBoxPlaneController(Node):
         return math.sin(0.5 * yaw), math.cos(0.5 * yaw)
 
     def turn_direction(self, yaw: float) -> str:
-        if yaw < 0.0:
-            return "turn_left"
         if yaw > 0.0:
+            return "turn_left"
+        if yaw < 0.0:
             return "turn_right"
         return "turn_none"
 
@@ -854,7 +854,7 @@ class GrayBoxPlaneController(Node):
         if abs(lateral_error) >= self.lateral_deadband_m:
             target_xy[1] = lateral_error if self.invert_lateral else -lateral_error
         if abs(yaw_error) >= self.yaw_deadband_rad:
-            yaw = -yaw_error if self.invert_angular else yaw_error
+            yaw = yaw_error if self.invert_angular else -yaw_error
         self.latest_topdown_object_xy = object_xy.copy()
         self.latest_topdown_target_xy = target_xy.copy()
         self.latest_topdown_target_yaw = yaw
