@@ -94,13 +94,14 @@ class GrayBoxPlaneController(Node):
         self.declare_parameter("motor_linear_speed", 0.10)
         self.declare_parameter("motor_angular_speed", 0.30)
         self.declare_parameter("max_motor_step_dt_sec", 0.25)
-        self.declare_parameter("yaw_deadband_deg", 3.0)
-        self.declare_parameter("lateral_deadband_m", 0.005)
-        self.declare_parameter("distance_deadband_m", 0.025)
-        self.declare_parameter("max_angular_speed", 0.10)
+        self.declare_parameter("yaw_deadband_deg", 6.0)
+        self.declare_parameter("lateral_deadband_m", 0.015)
+        self.declare_parameter("distance_deadband_m", 0.010)
+        self.declare_parameter("max_angular_speed", 0.06)
         self.declare_parameter("max_lateral_speed", 0.10)
         self.declare_parameter("max_forward_speed", 0.10)
         self.declare_parameter("cmd_republish_period_sec", 0.05)
+        self.declare_parameter("cmd_smoothing_alpha", 0.35)
         self.declare_parameter("side_band_fraction", 0.20)
         self.declare_parameter("min_side_points", 8)
         self.declare_parameter("cloud_tracking_enabled", False)
@@ -174,6 +175,7 @@ class GrayBoxPlaneController(Node):
         self.max_lateral_speed = abs(float(self.get_parameter("max_lateral_speed").value))
         self.max_forward_speed = abs(float(self.get_parameter("max_forward_speed").value))
         self.cmd_republish_period_sec = max(0.01, float(self.get_parameter("cmd_republish_period_sec").value))
+        self.cmd_smoothing_alpha = float(np.clip(float(self.get_parameter("cmd_smoothing_alpha").value), 0.0, 1.0))
         self.side_band_fraction = float(self.get_parameter("side_band_fraction").value)
         self.min_side_points = int(self.get_parameter("min_side_points").value)
         self.cloud_tracking_enabled = bool(self.get_parameter("cloud_tracking_enabled").value)
@@ -228,6 +230,8 @@ class GrayBoxPlaneController(Node):
         self.last_move_end_object_xy: Optional[np.ndarray] = None
         self.active_cmd = Twist()
         self.active_cmd_stamp_ns: Optional[int] = None
+        self.smoothed_lateral_cmd: Optional[float] = None
+        self.smoothed_angular_cmd: Optional[float] = None
         self.cluster_history = deque(maxlen=self.position_average_frames)
         self.align_goal_handle = None
         self.align_started_ns: Optional[int] = None
@@ -304,6 +308,8 @@ class GrayBoxPlaneController(Node):
         self.filtered_yaw = None
         self.filtered_lateral = None
         self.filtered_distance = None
+        self.smoothed_lateral_cmd = None
+        self.smoothed_angular_cmd = None
         goal_handle.executing()
         self.get_logger().info(
             f"accepted gray box align goal: timeout={goal_handle.request.timeout:.3f}s"
@@ -326,6 +332,8 @@ class GrayBoxPlaneController(Node):
         self.align_started_ns = None
         self.align_centered_count = 0
         self.latest_base_goal = None
+        self.smoothed_lateral_cmd = None
+        self.smoothed_angular_cmd = None
         self.stop()
         self.get_logger().info(f"gray box align finished: success={success} {message}")
 
@@ -362,6 +370,13 @@ class GrayBoxPlaneController(Node):
     def set_active_cmd(self, cmd: Twist) -> None:
         self.active_cmd = cmd
         self.active_cmd_stamp_ns = self.get_clock().now().nanoseconds
+        if (
+            abs(float(cmd.linear.x)) < 1e-6
+            and abs(float(cmd.linear.y)) < 1e-6
+            and abs(float(cmd.angular.z)) < 1e-6
+        ):
+            self.smoothed_lateral_cmd = None
+            self.smoothed_angular_cmd = None
 
     def active_cmd_stale(self) -> bool:
         if self.active_cmd_stamp_ns is None:
@@ -374,12 +389,15 @@ class GrayBoxPlaneController(Node):
             return
         if self.active_cmd_stale():
             self.active_cmd = Twist()
+            self.cmd_pub.publish(Twist())
             return
         self.cmd_pub.publish(self.active_cmd)
 
     def stop(self) -> None:
         self.active_cmd = Twist()
         self.active_cmd_stamp_ns = None
+        self.smoothed_lateral_cmd = None
+        self.smoothed_angular_cmd = None
         if rclpy.ok():
             self.cmd_pub.publish(Twist())
 
@@ -846,6 +864,12 @@ class GrayBoxPlaneController(Node):
         alpha = float(np.clip(self.filter_alpha, 0.0, 1.0))
         return (1.0 - alpha) * old + alpha * new
 
+    def smoothed_cmd_component(self, old: Optional[float], new: float) -> float:
+        if old is None:
+            return new
+        alpha = self.cmd_smoothing_alpha
+        return (1.0 - alpha) * old + alpha * new
+
     def command_from_plane(self, plane: PlaneFit) -> tuple[Twist, str, float, float, float]:
         yaw_error = math.atan2(float(plane.normal[0]), max(1e-6, -float(plane.normal[2])))
         lateral_error = -float(plane.centroid[0])
@@ -891,7 +915,7 @@ class GrayBoxPlaneController(Node):
         cmd = Twist()
         lateral_active = abs(lateral) > self.lateral_deadband_m
         yaw_active = abs(yaw) > (self.yaw_deadband_rad if plane_yaw is not None else self.yaw_depth_deadband_m)
-        approach_active = distance > 0.0
+        approach_active = distance > self.distance_deadband_m
         if approach_active:
             cmd.linear.x = float(np.clip(self.approach_speed, 0.0, self.max_forward_speed))
         if lateral_active:
@@ -910,6 +934,20 @@ class GrayBoxPlaneController(Node):
             else:
                 # Fallback: if the left side is closer, yaw_delta is negative and this commands left.
                 cmd.angular.z = float(np.clip(-self.yaw_depth_kp * yaw, -self.max_angular_speed, self.max_angular_speed))
+
+        if lateral_active:
+            cmd.linear.y = self.smoothed_cmd_component(self.smoothed_lateral_cmd, float(cmd.linear.y))
+            self.smoothed_lateral_cmd = float(cmd.linear.y)
+        else:
+            cmd.linear.y = 0.0
+            self.smoothed_lateral_cmd = None
+        if yaw_active:
+            cmd.angular.z = self.smoothed_cmd_component(self.smoothed_angular_cmd, float(cmd.angular.z))
+            self.smoothed_angular_cmd = float(cmd.angular.z)
+        else:
+            cmd.angular.z = 0.0
+            self.smoothed_angular_cmd = None
+
         if approach_active and lateral_active and yaw_active:
             stage = "approach_lateral_plane" if plane_yaw is not None else "approach_lateral_orient"
         elif approach_active and lateral_active:
