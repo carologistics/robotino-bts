@@ -112,7 +112,7 @@ class GrayBoxPlaneController(Node):
         self.declare_parameter("lateral_kp", 0.45)
         self.declare_parameter("forward_kp", 0.45)
         self.declare_parameter("invert_angular", True)
-        self.declare_parameter("invert_lateral", True)
+        self.declare_parameter("invert_lateral", False)
         self.declare_parameter("action_enables_motion", True)
         self.declare_parameter("centered_stable_frames", 2)
         self.declare_parameter("run_only_during_action", True)
